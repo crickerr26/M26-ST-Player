@@ -861,7 +861,15 @@ const _relayOverride=(k,def)=>{try{const qs=new URLSearchParams(location.search)
    worker behind it, so location.origin+'/proxy' 404s there and login hung forever cycling
    through the public CORS-relay fallbacks. Route those hosts straight to the standalone
    Cloudflare Worker instead, same as the non-https fallback already did. */
-const _hasWorkerBackend=()=>{try{return location.protocol==='https:'&&!/\.github\.io$/i.test(location.hostname)}catch{return false}};
+/* v99: "same origin serves the Worker routes" is only true where the Worker actually runs. The app
+   is also deployed to hosts that serve these files statically plus the api/ function — Vercel gives
+   us /stalker-proxy but there is no /proxy there, and porting the stream relay to a serverless
+   function is not an option either since those cap out around a minute and a live channel runs for
+   hours. Naming those hosts here sends /proxy to the standalone proxy Worker instead of building a
+   same-origin URL that 404s, which is what made every stream fail with "Stream stopped" while the
+   catalog loaded perfectly. */
+const _STATIC_HOSTS=/\.(github\.io|vercel\.app|netlify\.app)$/i;
+const _hasWorkerBackend=()=>{try{return location.protocol==='https:'&&!_STATIC_HOSTS.test(location.hostname)}catch{return false}};
 const PROXY=_relayOverride('proxy',_hasWorkerBackend()?location.origin+'/proxy?url=':'https://smarter-iptv-proxy.gz-inzi84.workers.dev/proxy?url=');
 const LIVE_HLS=_relayOverride('livehls','https://smartertv-secure.gz-inzi84.workers.dev/live-hls?url=');
 const FAV='smarter-fresh-favs-v1';
