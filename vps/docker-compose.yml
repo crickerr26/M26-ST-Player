@@ -1,0 +1,47 @@
+# One box: portal API relay + stream proxy + transcoder, behind Caddy for automatic HTTPS.
+# Run from the repo root:  docker compose -f vps/docker-compose.yml up -d --build
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: m26-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: "${DOMAIN:?set DOMAIN in vps/.env}"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [relay, transcoder]
+
+  relay:
+    build: ../relay
+    container_name: m26-relay
+    restart: unless-stopped
+    environment:
+      PORT: "8080"
+    expose: ["8080"]
+
+  # Built straight from the transcoder repo, so it tracks that project rather than
+  # vendoring a copy here. Its Dockerfile already installs ffmpeg.
+  transcoder:
+    build: https://github.com/crickerr26/smarter-iptv.git
+    container_name: m26-transcoder
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: "8080"
+      PUBLIC_BASE_URL: "https://${DOMAIN}/transcoder"
+      CORS_ORIGIN: "*"
+      ACCESS_TOKEN: "${ACCESS_TOKEN:-}"
+      MEDIA_ROOT: /tmp/smarter-iptv-hls
+      SESSION_TTL_MS: "1800000"
+    expose: ["8080"]
+    tmpfs:
+      - /tmp/smarter-iptv-hls:size=4096m
+
+volumes:
+  caddy_data:
+  caddy_config:

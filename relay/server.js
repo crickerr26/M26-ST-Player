@@ -52,14 +52,93 @@ function isPrivateHost(hostname) {
   return h === '::1' || h.startsWith('fc') || h.startsWith('fd') || h.startsWith('fe80');
 }
 
+/* Generic stream relay — the /proxy route from _worker.js. Portals serve streams over plain http
+   with no CORS headers, so an https page can neither fetch them directly (mixed content) nor read
+   them cross-origin; every segment has to come through here. Kept out of the serverless build on
+   purpose: those cap out around a minute and a live channel runs for hours. On a VPS there is no
+   such limit, which is what lets one box carry portal API, streams and transcoding together.
+
+   Unlike /stalker-proxy this cannot be restricted to a fixed set of paths — stream URLs are
+   whatever the portal hands back — so the guard is refusing private/loopback/metadata targets. */
+async function handleStreamProxy(req, res, url) {
+  if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, 'Method not allowed');
+  const p = url.searchParams;
+  let target;
+  try { target = new URL(p.get('url') || ''); } catch { return send(res, 400, 'Invalid url'); }
+  if (target.protocol !== 'http:' && target.protocol !== 'https:') return send(res, 400, 'Invalid url');
+  if (isPrivateHost(target.hostname)) return send(res, 400, 'Refused');
+
+  const headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    'Accept': '*/*'
+  };
+  const range = req.headers['range'];
+  if (range) headers['Range'] = range;
+
+  let upstream;
+  try {
+    upstream = await fetch(target.toString(), { method: req.method, headers, redirect: 'follow' });
+  } catch (e) {
+    return send(res, 502, JSON.stringify({ error: 'upstream_unreachable', detail: String((e && e.message) || e) }), { 'content-type': 'application/json' });
+  }
+
+  const out = {};
+  for (const k of ['content-type', 'content-length', 'content-range', 'accept-ranges']) {
+    const v = upstream.headers.get(k);
+    if (v) out[k] = v;
+  }
+  if (p.get('dl') === '1') out['content-disposition'] = `attachment; filename="${String(p.get('name') || 'download').replace(/"/g, '')}"`;
+
+  /* Many cheap IPTV origins ignore Range entirely and answer 200 with the whole file. A <video>
+     that asked for a range and gets an unranged 200 treats it as a new resource and snaps back to
+     the start — which is the "movie restarts when you seek" bug. Detect exactly that and build the
+     206 ourselves by skipping the requested bytes out of the body we are already receiving. */
+  const total = Number(upstream.headers.get('content-length'));
+  const m = /^bytes=(\d+)-(\d*)$/.exec(String(range || '').trim());
+  if (range && req.method === 'GET' && upstream.status === 200 && upstream.body && m && Number.isFinite(total) && total > 0) {
+    const start = Number(m[1]);
+    const end = m[2] ? Math.min(Number(m[2]), total - 1) : total - 1;
+    if (start >= 0 && start < total && end >= start) {
+      out['content-range'] = `bytes ${start}-${end}/${total}`;
+      out['content-length'] = String(end - start + 1);
+      out['accept-ranges'] = 'bytes';
+      res.writeHead(206, cors(out));
+      let skipped = 0, sent = 0;
+      const take = end - start + 1;
+      for await (const chunk of upstream.body) {
+        let buf = Buffer.from(chunk);
+        if (skipped < start) {
+          const need = start - skipped;
+          if (buf.length <= need) { skipped += buf.length; continue; }
+          buf = buf.subarray(need); skipped = start;
+        }
+        if (sent + buf.length >= take) { res.end(buf.subarray(0, take - sent)); return; }
+        sent += buf.length;
+        if (!res.write(buf)) await new Promise(r => res.once('drain', r));
+      }
+      return res.end();
+    }
+  }
+
+  res.writeHead(upstream.status, cors(out));
+  if (req.method === 'HEAD' || !upstream.body) return res.end();
+  try {
+    for await (const chunk of upstream.body) {
+      if (!res.write(Buffer.from(chunk))) await new Promise(r => res.once('drain', r));
+    }
+  } catch { /* client went away mid-stream — normal when switching channels */ }
+  res.end();
+}
+
 const server = http.createServer(async (req, res) => {
   let url;
   try { url = new URL(req.url, 'http://localhost'); } catch { return send(res, 400, 'Bad request'); }
 
   if (req.method === 'OPTIONS') return send(res, 204, '');
   if (url.pathname === '/' || url.pathname === '/health') {
-    return send(res, 200, JSON.stringify({ ok: true, service: 'm26-stalker-relay' }), { 'content-type': 'application/json' });
+    return send(res, 200, JSON.stringify({ ok: true, service: 'm26-stalker-relay', routes: ['/stalker-proxy', '/proxy'] }), { 'content-type': 'application/json' });
   }
+  if (url.pathname === '/proxy') return handleStreamProxy(req, res, url).catch(() => { try { res.end(); } catch {} });
   if (url.pathname !== '/stalker-proxy') return send(res, 404, 'Not found');
   if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, 'Method not allowed');
 
