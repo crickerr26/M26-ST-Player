@@ -1190,23 +1190,40 @@ async function stalkerFetchLiveGenres(){
   const arr=(d&&d.js)||[];
   return (Array.isArray(arr)?arr:[]).map(g=>({category_id:String(g.id),category_name:g.title||g.name||'Other'}));
 }
-async function stalkerFetchChannels(){return stalkerPaged('itv','get_ordered_list',{genre:'*',sortby:'number'})}
+/* v95: some Stalker/Ministra portals don't honor "*" as a get_ordered_list wildcard and just
+   return an empty page for it, even though the category list itself (get_genres/get_categories)
+   loads fine and per-id fetches return real data — confirmed on a live portal where every
+   category showed 0 items despite the category list loading correctly. If the single wildcard
+   sweep comes back empty but categories exist, fall back to fetching each real category id
+   individually and merging (dedup by item id). */
+async function stalkerFetchAllOrByCategory(type,filterKey,sortby,cats){
+  const all=await stalkerPaged(type,'get_ordered_list',{[filterKey]:'*',sortby});
+  if(all&&all.length)return all;
+  if(!Array.isArray(cats)||!cats.length)return all;
+  const merged=new Map();
+  for(const c of cats){
+    const items=await stalkerPaged(type,'get_ordered_list',{[filterKey]:c.category_id,sortby}).catch(()=>null);
+    if(Array.isArray(items))for(const it of items){if(it&&it._srcCat===undefined)it._srcCat=c.category_id;merged.set(String(it.id),it)}
+  }
+  return merged.size?Array.from(merged.values()):all;
+}
+async function stalkerFetchChannels(cats){return stalkerFetchAllOrByCategory('itv','genre','number',cats)}
 async function stalkerFetchVodCategories(){
   const d=await stalkerRequest('vod','get_categories').catch(()=>null);
   const arr=(d&&d.js)||[];
   return (Array.isArray(arr)?arr:[]).map(c=>({category_id:String(c.id),category_name:c.title||c.name||'Other'}));
 }
-async function stalkerFetchVodList(){return stalkerPaged('vod','get_ordered_list',{category:'*',sortby:'added'})}
+async function stalkerFetchVodList(cats){return stalkerFetchAllOrByCategory('vod','category','added',cats)}
 async function stalkerFetchSeriesCategories(){
   const d=await stalkerRequest('series','get_categories').catch(()=>null);
   const arr=(d&&d.js)||[];
   return (Array.isArray(arr)?arr:[]).map(c=>({category_id:String(c.id),category_name:c.title||c.name||'Other'}));
 }
-async function stalkerFetchSeriesList(){return stalkerPaged('series','get_ordered_list',{category:'*',sortby:'added'})}
+async function stalkerFetchSeriesList(cats){return stalkerFetchAllOrByCategory('series','category','added',cats)}
 /* Shared item-shape mappers, reused by loadTypeStalker's field-by-field remapping. */
-function mapStalkerLive(c){return {_type:'live',stream_id:String(c.id),name:c.name||c.title||'Untitled',stream_icon:c.logo||'',category_id:String(c.tv_genre_id||c.genre_id||''),_cmd:c.cmd||''}}
-function mapStalkerVod(c){return {_type:'vod',stream_id:String(c.id),name:c.name||c.title||'Untitled',stream_icon:c.screenshot_uri||c.logo||'',category_id:String(c.category_id||''),_cmd:c.cmd||'',container_extension:String(c.container||'').replace(/^\./,''),_raw:c}}
-function mapStalkerSeries(c){return {_type:'series',series_id:String(c.id),stream_id:String(c.id),name:c.name||c.title||'Untitled',cover:c.screenshot_uri||c.logo||'',category_id:String(c.category_id||''),_cmd:c.cmd||'',_raw:c}}
+function mapStalkerLive(c){return {_type:'live',stream_id:String(c.id),name:c.name||c.title||'Untitled',stream_icon:c.logo||'',category_id:String(c.tv_genre_id||c.genre_id||c._srcCat||''),_cmd:c.cmd||''}}
+function mapStalkerVod(c){return {_type:'vod',stream_id:String(c.id),name:c.name||c.title||'Untitled',stream_icon:c.screenshot_uri||c.logo||'',category_id:String(c.category_id||c._srcCat||''),_cmd:c.cmd||'',container_extension:String(c.container||'').replace(/^\./,''),_raw:c}}
+function mapStalkerSeries(c){return {_type:'series',series_id:String(c.id),stream_id:String(c.id),name:c.name||c.title||'Untitled',cover:c.screenshot_uri||c.logo||'',category_id:String(c.category_id||c._srcCat||''),_cmd:c.cmd||'',_raw:c}}
 /* Null-safe: a failed fetch no longer wipes out whatever was already loaded for this type. */
 async function loadTypeStalker(type){
   if(type==='live')S.loadingLive=true;else if(type==='vod')S.loadingVod=true;else S.loadingSeries=true;
@@ -1214,17 +1231,17 @@ async function loadTypeStalker(type){
   try{
     if(type==='live'){
       S.liveCats=await stalkerFetchLiveGenres();
-      const items=await stalkerFetchChannels();
+      const items=await stalkerFetchChannels(S.liveCats);
       if(items===null){toast('Could not load Live TV — check your connection and try again.');}
       else{S.live=items.map(mapStalkerLive);S.loadedLive=true;}
     }else if(type==='vod'){
       S.vodCats=await stalkerFetchVodCategories();
-      const items=await stalkerFetchVodList();
+      const items=await stalkerFetchVodList(S.vodCats);
       if(items===null){toast('Could not load Movies — check your connection and try again.');}
       else{S.vod=items.map(mapStalkerVod);S.loadedVod=true;}
     }else{
       S.seriesCats=await stalkerFetchSeriesCategories();
-      const items=await stalkerFetchSeriesList();
+      const items=await stalkerFetchSeriesList(S.seriesCats);
       if(items===null){toast('Could not load Series — check your connection and try again.');}
       else{S.series=items.map(mapStalkerSeries);S.loadedSeries=true;}
     }
