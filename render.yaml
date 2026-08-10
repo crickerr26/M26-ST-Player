@@ -1,3 +1,5 @@
+# Render Blueprint. Must live at the repo root for the one-click deploy link to work;
+# rootDir points it at the relay service itself. See relay/README.md.
 services:
   - type: web
     name: m26-stalker-relay

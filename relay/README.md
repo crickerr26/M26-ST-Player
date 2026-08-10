@@ -22,12 +22,16 @@ deploying. If the portal replies with normal JSON, the problem is elsewhere and 
 
 ## Deploy to Render
 
-1. Push this repo to GitHub (already done if you're reading it there).
-2. On [render.com](https://render.com) → **New → Web Service** → connect this repository.
-3. Set **Root Directory** to `relay`. Render reads `render.yaml` for the rest
-   (Node 20, `npm install`, `node server.js`, health check on `/health`). The free plan is fine —
-   this only carries small JSON API calls, not video.
-4. Deploy, then open the service URL. `/health` should return `{"ok":true,...}`.
+**Easiest:** in the app, open **Stream tools** and press **Deploy free relay**. That opens Render's
+Blueprint flow against this repo, which reads `render.yaml` at the repo root and configures
+everything (Node 20, `npm install`, `node server.js`, health check on `/health`, free plan).
+
+**Manually**, if you prefer: on [render.com](https://render.com) → **New → Web Service** (not Static
+Site — this has to run code) → connect this repository → set **Root Directory** to `relay` →
+Deploy.
+
+Either way, open the service URL when it finishes: `/health` should return `{"ok":true,...}`.
+The free plan is fine; this carries small JSON API calls, not video.
 
 Any Node host works — Fly.io, Railway, a VPS. There are no dependencies; it needs Node 18+ and a
 `PORT` environment variable (defaults to 8080).
