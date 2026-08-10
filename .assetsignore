@@ -6,3 +6,6 @@ wrangler.jsonc
 .assetsignore
 relay
 render.yaml
+api
+vercel.json
+.vercelignore

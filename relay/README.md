@@ -36,6 +36,23 @@ The free plan is fine; this carries small JSON API calls, not video.
 Any Node host works — Fly.io, Railway, a VPS. There are no dependencies; it needs Node 18+ and a
 `PORT` environment variable (defaults to 8080).
 
+## Or deploy to Vercel instead (no Render account needed)
+
+The repo also carries a serverless build of the same relay at `api/stalker-proxy.js`, so the whole
+thing can be deployed straight to Vercel's free tier:
+
+1. [vercel.com](https://vercel.com) → **Add New → Project** → import this repository.
+2. Accept the defaults and **Deploy**. `vercel.json` maps `/stalker-proxy` onto the function, so the
+   URL shape matches the Render build.
+
+That deployment serves the **whole player** as well as the relay. If you open the app from the
+Vercel URL, its built-in same-origin route already points at the function — **no relay URL needs
+configuring at all**, and nothing touches Cloudflare. If you'd rather keep using the Cloudflare URL
+for the app, just paste the Vercel URL into **Stream tools → Portal relay URL**.
+
+Vercel's free tier includes far more bandwidth than portal API calls consume (they are kilobytes of
+JSON), and functions do not sleep the way a free Render instance does.
+
 > Free Render instances sleep when idle, so the first login after a quiet spell can take ~30s while
 > the service wakes. Subsequent calls are fast.
 
