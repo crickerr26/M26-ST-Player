@@ -1,0 +1,40 @@
+# Automatic HTTPS via Let's Encrypt. Requires DOMAIN to have an A record pointing at this box.
+{$DOMAIN} {
+	encode zstd gzip
+
+	# Portal API — what the app's "Portal relay URL" points at.
+	handle /stalker-proxy* {
+		reverse_proxy relay:8080
+	}
+
+	# Stream relay. Long-lived: a live channel holds this open for hours, so the
+	# usual proxy read timeout has to be disabled or playback dies mid-programme.
+	handle /proxy* {
+		reverse_proxy relay:8080 {
+			flush_interval -1
+			transport http {
+				response_header_timeout 30s
+				read_timeout 0
+			}
+		}
+	}
+
+	# Transcoder — the app's "Transcoder server URL" is https://DOMAIN/transcoder
+	handle /transcoder/* {
+		uri strip_prefix /transcoder
+		reverse_proxy transcoder:8080 {
+			flush_interval -1
+			transport http {
+				read_timeout 0
+			}
+		}
+	}
+
+	handle /health {
+		reverse_proxy relay:8080
+	}
+
+	handle {
+		respond "M26 services" 200
+	}
+}

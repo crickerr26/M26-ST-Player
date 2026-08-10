@@ -3,3 +3,6 @@ wrangler.jsonc
 render.yaml
 relay/
 .assetsignore
+
+vps/
+relay/Dockerfile
