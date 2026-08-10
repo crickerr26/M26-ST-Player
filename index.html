@@ -1076,6 +1076,23 @@ function getOrCreateStalkerMac(){
     mac=genStalkerMac();store.setItem(STALKER_MAC_KEY,mac);return mac;
   }catch{return genStalkerMac()}
 }
+/* v94: the MAC field can be left mid-edit (readonly=false, "Save" not yet tapped) when Connect
+   is pressed — getOrCreateStalkerMac() alone would then silently log in with the OLD stored MAC
+   instead of the one visibly typed in the box, so a MAC the provider just activated gets a
+   "not activated" error quoting a totally different address. Commit whatever's in the field
+   first (same validation/persist/UI-reset the Edit button's Save step does) and only fall back
+   to storage if the field is empty or not a valid MAC. */
+function commitStalkerMacField(){
+  const inp=$('stalkerMac');
+  const v=inp?inp.value.trim().toUpperCase():'';
+  if(/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(v)){
+    try{store.setItem(STALKER_MAC_KEY,v)}catch(e){}
+    inp.value=v;inp.readOnly=true;
+    if($('stalkerMacEdit'))$('stalkerMacEdit').textContent='Edit';
+    return v;
+  }
+  return getOrCreateStalkerMac();
+}
 const STALKER_EP_CANDIDATES=['portal.php','stalker_portal/server/load.php','server/load.php','c/portal.php'];
 const STALKER_PROXY=(()=>{try{return /^https?:$/.test(location.protocol)?location.origin+'/stalker-proxy':''}catch{return''}})();
 async function stalkerRequest(type,action,extra={}){
@@ -1310,7 +1327,7 @@ async function loginStalker(){
   const portal=normalize($('stalkerUrl').value);
   const user=$('stalkerUser').value.trim();
   const pass=$('stalkerPass').value;
-  const mac=getOrCreateStalkerMac();
+  const mac=commitStalkerMacField();
   if(!portal){$('err').textContent='Could not reach the Stalker portal. Check the portal URL.';return}
   S.stalker={portal,mac,user,pass,token:'',endpoint:''};
   load(true,'Connecting...');
