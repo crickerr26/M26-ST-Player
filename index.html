@@ -1132,7 +1132,19 @@ async function stalkerRequest(type,action,extra={}){
     const qs=new URLSearchParams(params);
     try{
       const r=await fetchWithTimeout(STALKER_PROXY+'?'+qs.toString(),15000);
-      if(!r.ok){lastErr=Error('HTTP '+r.status);continue}
+      if(!r.ok){
+        /* v98: READ THE BODY on a failed status. It used to be discarded, so a firewall block —
+           which arrives as a 403 carrying an HTML page, not JSON — never reached the Cloudflare
+           check below and surfaced as a bare "HTTP 403". mapStalkerError then reported that as
+           "Login rejected. Check your username and password.", blaming credentials that were
+           correct. The body is the only thing that distinguishes a portal auth refusal from a
+           firewall block, and both use 403. */
+        let body='';try{body=await r.text()}catch{}
+        lastErr=Error('HTTP '+r.status);
+        if(looksLikeCfBlock(body))lastErr=Error('Blocked by the portal’s Cloudflare protection (HTTP '+r.status+')');
+        else if(body&&body.trim())lastErr.body=String(body).replace(/\s+/g,' ').slice(0,160);
+        continue;
+      }
       const txt=await r.text();
       if(!txt||!txt.trim()){lastErr=Error('Empty response');continue}
       let data;try{data=JSON.parse(txt)}catch{lastErr=Error(looksLikeCfBlock(txt)?'Blocked by the portal’s Cloudflare protection':'Invalid response (portal did not return JSON)');continue}
@@ -1143,7 +1155,8 @@ async function stalkerRequest(type,action,extra={}){
   /* v97: keep the real reason. Collapsing 404 / 502 upstream-unreachable / timeout / non-JSON
      into one generic string made every portal failure look identical and undebuggable — the
      underlying cause now rides along so the login screen can show what actually happened. */
-  if(lastErr&&/^HTTP 40[13]$/.test(lastErr.message||''))throw lastErr;
+  if(lastErr&&/Cloudflare/i.test(lastErr.message||''))throw lastErr;
+  if(lastErr&&/^HTTP 40[13]$/.test(lastErr.message||''))throw Object.assign(lastErr,{detail:lastErr.body||''});
   throw Object.assign(Error('Could not reach the Stalker portal. Check the portal URL.'),{detail:(lastErr&&lastErr.message)||'no response from any known portal path'});
 }
 async function stalkerHandshake(){
@@ -1479,8 +1492,13 @@ function mapStalkerError(e,mac){
   const code=e&&e.code;
   const m=String((e&&e.message)||e||'');
   if(code==='not_activated')return 'This device MAC is not activated. Give '+(mac||(S.stalker&&S.stalker.mac)||'')+' to your IPTV provider and ask them to register it.';
-  if(/HTTP 401|HTTP 403/.test(m))return 'Login rejected. Check your username and password.';
-  if(/Cloudflare/i.test(m)||/Cloudflare/i.test((e&&e.detail)||''))return 'Your portal’s Cloudflare protection is blocking this app. Allowlist it (or disable the bot challenge on the portal loader path) in the portal domain’s Cloudflare dashboard.';
+  if(/Cloudflare/i.test(m)||/Cloudflare/i.test((e&&e.detail)||''))return 'The portal’s Cloudflare protection is blocking this app — this is not a wrong password. The portal owner has to allowlist it, or the app has to reach the portal from somewhere else.';
+  /* v98: 401 and 403 are NOT the same thing here and must not share a message. 401 is the portal
+     genuinely refusing these credentials; 403 is just as often a firewall/WAF in front of the
+     portal, which has nothing to do with the password — saying "check your username and
+     password" for a 403 sent debugging in the wrong direction. */
+  if(/HTTP 401/.test(m))return 'Login rejected — the portal did not accept this username/password for this MAC.';
+  if(/HTTP 403/.test(m))return 'The portal refused the request (403). That is not necessarily your password — a firewall in front of the portal also returns 403. Check the MAC is registered on THIS portal URL, then tap Portal diagnostics for the exact reply.'+((e&&e.detail)?' ['+e.detail+']':'');
   if(e&&e.detail)return m+' ('+e.detail+') — tap Portal diagnostics for the full reply.';
   return m||'Could not create a Stalker session. Make sure this MAC is activated by your IPTV provider.';
 }
