@@ -1125,8 +1125,8 @@ function stalkerProxyBase(){
   if(relay)return relay.replace(/\/+$/,'')+'/stalker-proxy';
   try{return /^https?:$/.test(location.protocol)?location.origin+'/stalker-proxy':''}catch{return''}
 }
-/* v97: these portals sit behind Cloudflare (tv.stream4k.cc, sw4u.net and the billing host all
-   resolve into Cloudflare ranges), while this app runs as a Cloudflare Worker — so portal calls
+/* v97: portals commonly sit behind Cloudflare (the ones this was diagnosed against all resolved
+   into Cloudflare ranges), while this app runs as a Cloudflare Worker — so portal calls
    arrive at the origin from a datacenter IP carrying a MAG set-top-box User-Agent, which reads
    as a bot. When bot protection challenges that, the reply is an HTML interstitial rather than
    JSON, which used to surface only as the catch-all "Invalid response". Name it, because the fix
