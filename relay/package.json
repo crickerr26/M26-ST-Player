@@ -1,0 +1,9 @@
+{
+  "name": "m26-stalker-relay",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Standalone Stalker/Ministra portal relay for M26 ST Player, for hosting off Cloudflare",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=18" }
+}

@@ -1,0 +1,60 @@
+# M26 Stalker relay
+
+An optional, standalone copy of the `/stalker-proxy` route from `_worker.js`, meant to run
+somewhere that is **not** Cloudflare.
+
+## When you need this
+
+You don't, unless portal logins or playlists are being refused.
+
+The player is deployed on Cloudflare Workers, and IPTV portals are often behind Cloudflare too.
+Portal API calls therefore reach the portal from Cloudflare's own network, carrying the MAG
+set-top-box `User-Agent` the Stalker protocol requires. That combination can read as a bot and draw
+a challenge — and a challenge replies with an HTML page instead of JSON, which surfaces in the app
+as a login failure or an empty playlist.
+
+Running this relay on an ordinary host makes those calls arrive from a normal datacenter IP
+instead, sidestepping the Cloudflare-to-Cloudflare path.
+
+**Confirm it's actually the problem first.** In the app, tap **Portal diagnostics → Run**. If you
+see `← CLOUDFLARE CHALLENGE`, or 403s whose body is a Cloudflare page, this relay is worth
+deploying. If the portal replies with normal JSON, the problem is elsewhere and this won't help.
+
+## Deploy to Render
+
+1. Push this repo to GitHub (already done if you're reading it there).
+2. On [render.com](https://render.com) → **New → Web Service** → connect this repository.
+3. Set **Root Directory** to `relay`. Render reads `render.yaml` for the rest
+   (Node 20, `npm install`, `node server.js`, health check on `/health`). The free plan is fine —
+   this only carries small JSON API calls, not video.
+4. Deploy, then open the service URL. `/health` should return `{"ok":true,...}`.
+
+Any Node host works — Fly.io, Railway, a VPS. There are no dependencies; it needs Node 18+ and a
+`PORT` environment variable (defaults to 8080).
+
+> Free Render instances sleep when idle, so the first login after a quiet spell can take ~30s while
+> the service wakes. Subsequent calls are fast.
+
+## Point the app at it
+
+In the app: **Stream tools → Portal relay URL** → paste the service URL
+(e.g. `https://m26-stalker-relay.onrender.com`) → reconnect.
+
+Leave the field empty to go back to the built-in same-origin route. Nothing else changes.
+
+## Scope
+
+Only portal **API** calls go through this relay. Video segments keep using whatever path the app
+already uses, so a free instance is never asked to push streams.
+
+Deliberately not an open proxy — the same guards as the Worker version:
+
+- `GET` only
+- only the four known Stalker loader paths (`portal.php`, `stalker_portal/server/load.php`,
+  `server/load.php`, `c/portal.php`)
+- a syntactically valid MAC is required
+- `http`/`https` targets only, and private, loopback, link-local and cloud-metadata addresses are
+  refused, so it can't be used to probe the network it's deployed in
+
+Upstream status codes and bodies are passed through untouched — the app tells a portal auth refusal
+apart from a firewall block by reading them, so neither may be normalised away here.
