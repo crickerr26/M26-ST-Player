@@ -1133,6 +1133,18 @@ function stalkerProxyBase(){
    is on the portal's Cloudflare (allowlist the app / disable the challenge for the loader path),
    not in this code. */
 function looksLikeCfBlock(t){return /cf-(ray|chl|browser-verification)|__cf_chl|Attention Required|Just a moment|Enable JavaScript and cookies|error code:\s*10\d\d|cloudflare/i.test(String(t||''))}
+/* v99: a refusal page is HTML, and the sentence that says WHY sits after the boilerplate title and
+   heading. Showing the raw first N characters spent the whole budget on doctype and tags and cut
+   the explanation off mid-word — the one thing worth reading. Strip the markup and show the text,
+   so "403 Forbidden Sorry for the inconvenience, but <the actual reason>" survives. */
+function plainBody(t,max){
+  const s=String(t||'')
+    .replace(/<(script|style)[\s\S]*?<\/\1>/gi,' ')
+    .replace(/<[^>]+>/g,' ')
+    .replace(/&nbsp;/gi,' ').replace(/&amp;/gi,'&').replace(/&lt;/gi,'<').replace(/&gt;/gi,'>')
+    .replace(/\s+/g,' ').trim();
+  return s.length>max?s.slice(0,max)+'…':s;
+}
 async function stalkerRequest(type,action,extra={}){
   const PROXY=stalkerProxyBase();
   if(!PROXY)throw Error('Could not reach the Stalker portal. Check the portal URL.');
@@ -1155,7 +1167,7 @@ async function stalkerRequest(type,action,extra={}){
         let body='';try{body=await r.text()}catch{}
         lastErr=Error('HTTP '+r.status);
         if(looksLikeCfBlock(body))lastErr=Error('Blocked by the portal’s Cloudflare protection (HTTP '+r.status+')');
-        else if(body&&body.trim())lastErr.body=String(body).replace(/\s+/g,' ').slice(0,160);
+        else if(body&&body.trim())lastErr.body=plainBody(body,240);
         continue;
       }
       const txt=await r.text();
@@ -1302,7 +1314,7 @@ async function runPortalDiagnostics(write){
       let note='';
       try{const j=JSON.parse(txt);const tk=j&&j.js&&j.js.token;note=tk?'  ← TOKEN OK':'  parsed, no token';if(tk&&!liveEp)liveEp=ep;}
       catch{note=looksLikeCfBlock(txt)?'  ← CLOUDFLARE CHALLENGE (portal is blocking this app)':'  not JSON'}
-      emit('• /'+ep+'  ['+(Date.now()-t0)+'ms]  HTTP '+r.status+note+'\n    '+String(txt||'(empty body)').replace(/\s+/g,' ').slice(0,180));
+      emit('• /'+ep+'  ['+(Date.now()-t0)+'ms]  HTTP '+r.status+note+'\n    '+(plainBody(txt,500)||'(empty body)'));
     }catch(e){emit('• /'+ep+'  ['+(Date.now()-t0)+'ms]  REQUEST FAILED: '+((e&&e.message)||e))}
   }
   if(!liveEp&&!st.token){emit('\nNo path returned a token. The portal URL (or its port), or this MAC\'s registration, is the problem — not the catalog code.\n— done —');return lines.join('\n')}
