@@ -6,16 +6,17 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>M26 XT Player</title>
+<title>M26 ST Player</title>
 <!-- FIX: load engines locally if present, else fall back to CDN so playback never dies when the local .min.js files are missing -->
 <script src="hls.min.js" onerror="this.onerror=null;var s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.15/hls.min.js';document.head.appendChild(s);"></script>
 <script src="mpegts.min.js" onerror="this.onerror=null;var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/mpegts.js@1.8.0/dist/mpegts.js';s.onerror=function(){var u=document.createElement('script');u.src='https://unpkg.com/mpegts.js@1.8.0/dist/mpegts.js';document.head.appendChild(u);};document.head.appendChild(s);"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}html,body{height:100%;overflow:hidden}body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;background:#09111f;color:#eef6ff;-webkit-text-size-adjust:100%;touch-action:manipulation}button,input,select{font:inherit}button{cursor:pointer;border:0}input{border:0;outline:0}.hidden{display:none!important}:root{--bg:#09111f;--panel:#101b2f;--panel2:#16243d;--ink:#eef6ff;--muted:#9caec8;--soft:#d8e6fb;--line:rgba(255,255,255,.1);--blue:#38bdf8;--green:#2dd4bf;--pink:#fb7185;--amber:#fbbf24;--purple:#a78bfa;--shadow:0 18px 50px rgba(0,0,0,.35)}
 body.light{--bg:#f5f8fd;--panel:#ffffff;--panel2:#eef4fb;--ink:#142033;--muted:#607088;--soft:#26384f;--line:rgba(20,32,51,.11);--shadow:0 18px 45px rgba(27,39,62,.12)}
-.app{height:100%;background:radial-gradient(circle at 12% 8%,rgba(56,189,248,.22),transparent 30%),radial-gradient(circle at 88% 18%,rgba(45,212,191,.18),transparent 28%),linear-gradient(160deg,var(--bg),#0d1727 52%,var(--bg));display:grid;grid-template-rows:auto 1fr}.top{height:64px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:calc(10px + env(safe-area-inset-top)) max(14px,env(safe-area-inset-left)) 10px max(14px,env(safe-area-inset-right));border-bottom:1px solid var(--line);background:rgba(9,17,31,.78);backdrop-filter:blur(18px)}body.light .top{background:rgba(255,255,255,.78)}.brand{display:flex;align-items:center;gap:10px;min-width:0}.logo{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--blue),var(--green));display:grid;place-items:center;color:#05111f;font-weight:900;box-shadow:0 12px 26px rgba(56,189,248,.28)}.brand h1{font-size:18px;line-height:1}.brand p{font-size:11px;color:var(--muted);margin-top:3px;white-space:nowrap}.top-actions{display:flex;gap:8px;align-items:center}.iconbtn,.pillbtn{height:40px;border-radius:12px;background:var(--panel2);color:var(--ink);border:1px solid var(--line);display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:0 12px;font-weight:800}.iconbtn{width:42px;padding:0}.pillbtn.primary{background:linear-gradient(135deg,var(--blue),var(--green));color:#04111e;border:0}.layout{min-height:0;display:grid;grid-template-columns:330px 1fr 360px;gap:12px;padding:12px}.panel{background:rgba(16,27,47,.84);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);min-height:0;overflow:hidden}body.light .panel{background:rgba(255,255,255,.9)}.side{display:grid;grid-template-rows:auto auto minmax(0,1fr);min-height:0}.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:10px}.tab{height:42px;border-radius:12px;background:var(--panel2);color:var(--muted);font-weight:850;border:1px solid var(--line)}.tab.active{background:linear-gradient(135deg,var(--blue),var(--purple));color:white;border:0}
+.app{height:100%;background:radial-gradient(circle at 12% 8%,rgba(56,189,248,.22),transparent 30%),radial-gradient(circle at 88% 18%,rgba(45,212,191,.18),transparent 28%),linear-gradient(160deg,var(--bg),#0d1727 52%,var(--bg));display:grid;grid-template-rows:auto 1fr}.top{height:64px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:calc(10px + env(safe-area-inset-top)) max(14px,env(safe-area-inset-left)) 10px max(14px,env(safe-area-inset-right));border-bottom:1px solid var(--line);background:rgba(9,17,31,.78);backdrop-filter:blur(18px)}body.light .top{background:rgba(255,255,255,.78)}.brand{display:flex;align-items:center;gap:10px;min-width:0}.logo{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--blue),var(--green));display:grid;place-items:center;color:#05111f;font-weight:900;box-shadow:0 12px 26px rgba(56,189,248,.28)}.brand h1{font-size:18px;line-height:1}.brand p{font-size:11px;color:var(--muted);margin-top:3px;white-space:nowrap}.top-actions{display:flex;gap:8px;align-items:center}.iconbtn,.pillbtn{height:40px;border-radius:12px;background:var(--panel2);color:var(--ink);border:1px solid var(--line);display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:0 12px;font-weight:800}.iconbtn{width:42px;padding:0}.pillbtn.primary{background:linear-gradient(135deg,var(--blue),var(--green));color:#04111e;border:0}.layout{min-height:0;display:grid;grid-template-columns:330px 1fr 360px;gap:12px;padding:12px}.panel{background:rgba(16,27,47,.84);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);min-height:0;overflow:hidden}body.light .panel{background:rgba(255,255,255,.9)}.side{display:grid;grid-template-rows:auto auto minmax(0,1fr);min-height:0}.tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:10px}.tab{height:42px;border-radius:12px;background:var(--panel2);color:var(--muted);font-weight:850;border:1px solid var(--line)}.tab.active{background:linear-gradient(135deg,var(--blue),var(--purple));color:white;border:0}
 .tab[data-tab="vod"].active{background:linear-gradient(135deg,var(--pink),var(--amber))}
 .tab[data-tab="series"].active{background:linear-gradient(135deg,var(--purple),var(--blue))}
+.tab[data-tab="radio"].active{background:linear-gradient(135deg,var(--green),var(--blue))}
 body[data-active-tab="vod"] #sectionTitle{background:linear-gradient(135deg,var(--pink),var(--amber));-webkit-background-clip:text;background-clip:text;color:transparent}
 body[data-active-tab="series"] #sectionTitle{background:linear-gradient(135deg,var(--purple),var(--blue));-webkit-background-clip:text;background-clip:text;color:transparent}
 body[data-active-tab="vod"] .gcard.active .gposter{outline-color:var(--pink)}
@@ -315,6 +316,7 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
 .hc-live{background:linear-gradient(135deg,#2563eb,#38bdf8 58%,#22d3ee)}
 .hc-vod{background:linear-gradient(135deg,#7c3aed,#a855f7 54%,#ec4899)}
 .hc-series{background:linear-gradient(135deg,#0d9488,#14b8a6 52%,#f59e0b)}
+.hc-radio{background:linear-gradient(135deg,#16a34a,#22c55e 54%,#38bdf8)}
 .hc-ic{flex-shrink:0;width:64px;height:64px;border-radius:18px;background:rgba(255,255,255,.17);display:grid;place-items:center;animation:hcIconFloat 3.6s ease-in-out infinite}
 .home-card:nth-child(2) .hc-ic{animation-delay:-1.2s}.home-card:nth-child(3) .hc-ic{animation-delay:-2.4s}
 .hc-ic svg{width:36px;height:36px;color:#fff}
@@ -331,7 +333,7 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
 @keyframes hcShine{0%,100%{left:-60%}46%,54%{left:118%}}
 @keyframes homeBrandPulse{0%,100%{box-shadow:0 12px 40px rgba(56,189,248,.28),inset 0 0 0 1px rgba(255,255,255,.08)}50%{box-shadow:0 12px 54px rgba(56,189,248,.5),inset 0 0 0 1px rgba(255,255,255,.18)}}
 @media(min-width:720px){
-  .home-cards{grid-template-columns:repeat(3,1fr)}
+  .home-cards{grid-template-columns:repeat(4,1fr)}
   .home-card{flex-direction:column;align-items:flex-start;justify-content:flex-start;min-height:210px;gap:16px}
   .hc-arrow{position:absolute;right:18px;top:18px}
 }
@@ -344,7 +346,7 @@ body.light .home-head p{color:#5a6f90}
 .catpage.hidden{display:none}
 .catpage::before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle at 12% 8%,rgba(var(--cp-rgb),.12),transparent 46%),radial-gradient(circle at 88% 96%,rgba(var(--cp-rgb),.09),transparent 48%)}
 .catpage .home-bg span{filter:grayscale(1) blur(46px);opacity:.14}
-.catpage.theme-live,.catpage.theme-vod,.catpage.theme-series{--cp-a:#aeb6c4;--cp-b:#5c6472;--cp-rgb:160,168,182}
+.catpage.theme-live,.catpage.theme-vod,.catpage.theme-series,.catpage.theme-radio{--cp-a:#aeb6c4;--cp-b:#5c6472;--cp-rgb:160,168,182}
 .cp-inner{position:relative;z-index:1;width:min(820px,100%);margin:0 auto;height:100%;display:flex;flex-direction:column;gap:14px}
 .cp-head{display:flex;align-items:center;gap:12px;animation:homeRise .5s cubic-bezier(.2,.8,.2,1) both}
 .cp-back{flex-shrink:0;width:46px;height:46px;border-radius:15px;display:grid;place-items:center;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#dce8fb;transition:transform .15s ease,background .15s ease}
@@ -476,6 +478,7 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
 .splash-ring{position:absolute;inset:0;border-radius:50%;border:2px solid rgba(47,211,242,.35);border-top-color:#2fd3f2;animation:xtSpin 1.6s linear infinite}
 .splash-title{font-size:24px;font-weight:900;color:#eef6ff;letter-spacing:-.3px;animation:xtRise .8s ease .45s both}
 .splash-dev{font-size:11px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:#7a9bc8;animation:xtRise .8s ease .7s both}
+.splash-version{margin-top:6px;font-size:11px;font-weight:800;letter-spacing:.4px;color:#96a9c6;animation:xtRise .8s ease .8s both}
 .splash-bar{width:190px;height:3px;border-radius:3px;background:rgba(255,255,255,.1);overflow:hidden;margin-top:10px;animation:xtRise .8s ease .9s both}
 .splash-bar i{display:block;height:100%;width:0;border-radius:3px;background:linear-gradient(90deg,#2fd3f2,#2dd4bf);box-shadow:0 0 16px rgba(47,211,242,.7);animation:xtFill 1.7s ease .9s forwards}
 @keyframes xtPop{0%{transform:scale(.25);opacity:0;filter:blur(14px)}55%{transform:scale(1.07);filter:blur(0)}100%{transform:scale(1);opacity:1}}
@@ -571,15 +574,16 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
 <div id="splashScreen" class="splash-screen" aria-hidden="true">
   <div class="splash-inner">
     <div class="splash-logo"><span class="splash-ring"></span><img src="image_482ee8.png" alt="26 Logo" style="width: 72px; height: 72px; object-fit: contain; position: relative; z-index: 2; animation: xtGlow 2.2s ease-in-out infinite;"></div>
-    <div class="splash-title">M26 XT Player</div>
+    <div class="splash-title">M26 ST Player</div>
     <div class="splash-dev">Developed by Inzi Rishi</div>
+    <div class="splash-version" id="splashVersion"></div>
     <div class="splash-bar"><i></i></div>
   </div>
 </div>
 
 <div class="app" id="app">
   <header class="top">
-    <div class="brand"><div class="logo" style="background: transparent; box-shadow: none;"><img src="image_482ee8.png" alt="26 Logo" style="width: 100%; height: 100%; object-fit: contain;"></div><div><h1>M26 XT Player</h1><p class="byline">By Inzi Rishi</p></div></div>
+    <div class="brand"><div class="logo" style="background: transparent; box-shadow: none;"><img src="image_482ee8.png" alt="26 Logo" style="width: 100%; height: 100%; object-fit: contain;"></div><div><h1>M26 ST Player</h1><p class="byline">By Inzi Rishi</p></div></div>
     <div class="top-actions">
       <button class="iconbtn" id="menuBtn" title="Channels" aria-label="Toggle channel menu"></button>
       <button class="iconbtn" id="themeBtn" title="Theme" aria-label="Toggle theme"></button>
@@ -593,6 +597,7 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
         <button class="tab active" data-tab="live">Live</button>
         <button class="tab" data-tab="vod">Movies</button>
         <button class="tab" data-tab="series">Series</button>
+        <button class="tab" data-tab="radio">Radio</button>
       </div>
       <div class="searchbox"><input id="search" placeholder="Search channels, movies..." autocomplete="off"></div>
       <div class="cats" id="cats"></div>
@@ -662,7 +667,7 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
     </main>
     <aside class="panel info">
       <div class="hero"><h3 id="infoTitle">Welcome</h3><p id="infoText">This mode plays streams inside the preview area using native video, HLS, MPEG-TS, proxy, and transcoder paths.</p></div>
-      <div class="stats"><div class="stat"><strong id="liveCount">0</strong><span>LIVE</span></div><div class="stat"><strong id="vodCount">0</strong><span>MOVIES</span></div><div class="stat"><strong id="seriesCount">0</strong><span>SERIES</span></div></div>
+      <div class="stats"><div class="stat"><strong id="liveCount">0</strong><span>LIVE</span></div><div class="stat"><strong id="vodCount">0</strong><span>MOVIES</span></div><div class="stat"><strong id="seriesCount">0</strong><span>SERIES</span></div><div class="stat"><strong id="radioCount">0</strong><span>RADIO</span></div></div>
       <div class="details" id="details">Tip: on phones, turn sideways after video starts for a clean full-screen layout.</div>
     </aside>
   </div>
@@ -692,6 +697,12 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
         <span class="hc-shine"></span>
         <span class="hc-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7.5" width="18" height="12" rx="2.2"/><path d="M7 7.5l3-3.2M13 7.5l3.2-3.3"/><path d="M9.8 11l4.2 2.6-4.2 2.6z" fill="currentColor" stroke="none"/></svg></span>
         <span class="hc-txt"><b>Series</b><small><i id="homeSeriesCount">—</i> shows</small></span>
+        <span class="hc-arrow">→</span>
+      </button>
+      <button class="home-card hc-radio" data-go="radio">
+        <span class="hc-shine"></span>
+        <span class="hc-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 010 8.49M7.76 16.25a6 6 0 010-8.49M19.07 4.93a10 10 0 010 14.14M4.93 19.07a10 10 0 010-14.14"/></svg></span>
+        <span class="hc-txt"><b>Radio</b><small><i id="homeRadioCount">—</i> stations</small></span>
         <span class="hc-arrow">→</span>
       </button>
     </div>
@@ -921,7 +932,7 @@ const ICONS={
   sub:'<svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><line x1="7" y1="11" x2="11" y2="11"/><line x1="14" y1="11" x2="17" y2="11"/><line x1="7" y1="15" x2="13" y2="15"/><line x1="16" y1="15" x2="17" y2="15"/></svg>',
   download:'<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M5 21h14"/></svg>'
 };
-const S={provider:'stalker',stalker:{portal:'',mac:'',user:'',pass:'',token:'',endpoint:''},url:'',user:'',pass:'',tab:'live',cat:'',q:'',liveCats:[],live:[],vodCats:[],vod:[],seriesCats:[],series:[],current:null,hls:null,ts:null,seq:0,favs:new Set(),favCats:new Set(),orders:{live:[],vod:[],series:[]},recent:[],busy:false,playerModes:{live:'auto',vod:'auto',series:'auto'},extLaunch:null,lastStreamStopAt:0,lastExtLaunchAt:0,resume:{},catQ:'',catScroll:0,catScrollTab:'',viewModes:{live:'list',vod:'grid',series:'grid'},transFast:false};
+const S={provider:'stalker',stalker:{portal:'',mac:'',user:'',pass:'',token:'',endpoint:''},url:'',user:'',pass:'',tab:'live',cat:'',q:'',liveCats:[],live:[],vodCats:[],vod:[],seriesCats:[],series:[],radioCats:[],radio:[],current:null,hls:null,ts:null,seq:0,favs:new Set(),favCats:new Set(),orders:{live:[],vod:[],series:[],radio:[]},recent:[],busy:false,playerModes:{live:'auto',vod:'auto',series:'auto',radio:'auto'},extLaunch:null,lastStreamStopAt:0,lastExtLaunchAt:0,resume:{},catQ:'',catScroll:0,catScrollTab:'',viewModes:{live:'list',vod:'grid',series:'grid',radio:'list'},transFast:false};
 function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('show'),2200)}
 /* v95: every "Copy link" button called navigator.clipboard.writeText() without awaiting or
    catching its promise — writeText() can reject (permission denied, document not focused, no
@@ -1036,12 +1047,17 @@ async function getJson(action,extra=''){return fetchJsonChain(apiUrl(action,extr
 function idOf(x){return String(x.stream_id??x.series_id??x.episode_id??x.id??'')}
 function nameOf(x){return x.name||x.title||x.movie_name||'Untitled'}
 function typeOf(x){return x._type||S.tab}
+/* Radio behaves like Live everywhere that matters: a single continuous stream with no
+   poster/plot/episodes, no seeking, and nothing to download — used wherever the code already
+   special-cased "is this a live channel" so radio gets the same treatment instead of falling
+   into VOD/series-shaped UI it doesn't fit. */
+function isLiveLike(x){const t=typeOf(x);return t==='live'||t==='radio'}
 function keyOf(x){return typeOf(x)+':'+idOf(x)}
 function logoOf(x){return x.stream_icon||x.cover||x.movie_image||x.info?.movie_image||''}
-function list(){return S.tab==='live'?S.live:S.tab==='vod'?S.vod:S.series}
-function cats(){return S.tab==='live'?S.liveCats:S.tab==='vod'?S.vodCats:S.seriesCats}
+function list(){return S.tab==='live'?S.live:S.tab==='vod'?S.vod:S.tab==='series'?S.series:S.radio}
+function cats(){return S.tab==='live'?S.liveCats:S.tab==='vod'?S.vodCats:S.tab==='series'?S.seriesCats:S.radioCats}
 function countCat(cat){if(!cat)return list().length;return list().filter(x=>String(x.category_id||'')===String(cat)).length}
-function restore(){try{S.favs=new Set(JSON.parse(store.getItem(FAV)||'[]'))}catch{}try{S.favCats=new Set(JSON.parse(store.getItem(FAVCAT)||'[]'))}catch{}try{S.orders=Object.assign({live:[],vod:[],series:[]},JSON.parse(store.getItem(ORDER)||'{}'))}catch{}try{S.recent=JSON.parse(store.getItem(RECENT)||'[]')}catch{}try{const qs=new URLSearchParams(location.search),q=qs.get('transcoder')||'',qt=qs.get('transcoderToken')||'';let saved=q?normalize(q):(store.getItem(TRANSCODER_KEY)||DEFAULT_TRANSCODER);/* v6.2: migrate the old/outdated transcoder hosts to the current working one so MKV plays without the user having to re-paste a URL */if(/smarter-iptv-transcoder(-[a-z0-9]+)?\.onrender\.com/i.test(saved))saved=DEFAULT_TRANSCODER;if(saved){$('transcoderUrl').value=saved;store.setItem(TRANSCODER_KEY,saved)}const tok=qt||store.getItem(TRANSCODER_TOKEN_KEY)||'';if(tok){$('transcoderToken').value=tok;store.setItem(TRANSCODER_TOKEN_KEY,tok)}}catch{}try{S.playerModes=Object.assign({live:'auto',vod:'auto',series:'auto'},JSON.parse(store.getItem(PLAYER_MODE_KEY)||'{}'))}catch{}
+function restore(){try{S.favs=new Set(JSON.parse(store.getItem(FAV)||'[]'))}catch{}try{S.favCats=new Set(JSON.parse(store.getItem(FAVCAT)||'[]'))}catch{}try{S.orders=Object.assign({live:[],vod:[],series:[],radio:[]},JSON.parse(store.getItem(ORDER)||'{}'))}catch{}try{S.recent=JSON.parse(store.getItem(RECENT)||'[]')}catch{}try{const qs=new URLSearchParams(location.search),q=qs.get('transcoder')||'',qt=qs.get('transcoderToken')||'';let saved=q?normalize(q):(store.getItem(TRANSCODER_KEY)||DEFAULT_TRANSCODER);/* v6.2: migrate the old/outdated transcoder hosts to the current working one so MKV plays without the user having to re-paste a URL */if(/smarter-iptv-transcoder(-[a-z0-9]+)?\.onrender\.com/i.test(saved))saved=DEFAULT_TRANSCODER;if(saved){$('transcoderUrl').value=saved;store.setItem(TRANSCODER_KEY,saved)}const tok=qt||store.getItem(TRANSCODER_TOKEN_KEY)||'';if(tok){$('transcoderToken').value=tok;store.setItem(TRANSCODER_TOKEN_KEY,tok)}}catch{}try{S.playerModes=Object.assign({live:'auto',vod:'auto',series:'auto',radio:'auto'},JSON.parse(store.getItem(PLAYER_MODE_KEY)||'{}'))}catch{}
 /* v7.3 (owner request): the built-in player is the priority for everything now — a Movies/
    Series "Always use VLC/Infuse/..." choice saved from before this change would otherwise keep
    silently skipping the built-in player forever. One-time reset back to auto (built-in first);
@@ -1055,7 +1071,7 @@ try{
     store.setItem(INBUILT_PRIORITY_KEY,'1');
   }
   store.setItem(PLAYER_MODE_KEY,JSON.stringify(S.playerModes));
-}catch{}try{S.viewModes=Object.assign({live:'list',vod:'grid',series:'grid'},JSON.parse(store.getItem(VIEWMODE_KEY)||'{}'))}catch{}try{if($('stalkerMac'))$('stalkerMac').value=getOrCreateStalkerMac();const sc=JSON.parse(store.getItem(STALKER_KEY)||'null');if(sc){if($('stalkerUrl'))$('stalkerUrl').value=sc.portal||'';if($('stalkerUser'))$('stalkerUser').value=sc.user||'';if($('stalkerPass'))$('stalkerPass').value=sc.pass||''}}catch{}}
+}catch{}try{S.viewModes=Object.assign({live:'list',vod:'grid',series:'grid',radio:'list'},JSON.parse(store.getItem(VIEWMODE_KEY)||'{}'))}catch{}try{if($('stalkerMac'))$('stalkerMac').value=getOrCreateStalkerMac();const sc=JSON.parse(store.getItem(STALKER_KEY)||'null');if(sc){if($('stalkerUrl'))$('stalkerUrl').value=sc.portal||'';if($('stalkerUser'))$('stalkerUser').value=sc.user||'';if($('stalkerPass'))$('stalkerPass').value=sc.pass||''}}catch{}}
 function saveFavs(){store.setItem(FAV,JSON.stringify([...S.favs]))}
 function saveFavCats(){store.setItem(FAVCAT,JSON.stringify([...S.favCats]))}
 function catFavKey(c){return S.tab+':'+(c&&c.category_id!=null?c.category_id:c)}
@@ -1220,13 +1236,20 @@ async function stalkerFetchSeriesCategories(){
   return (Array.isArray(arr)?arr:[]).map(c=>({category_id:String(c.id),category_name:c.title||c.name||'Other'}));
 }
 async function stalkerFetchSeriesList(cats){return stalkerFetchAllOrByCategory('series','category','added',cats)}
+async function stalkerFetchRadioGenres(){
+  const d=await stalkerRequest('radio','get_genres').catch(()=>null);
+  const arr=(d&&d.js)||[];
+  return (Array.isArray(arr)?arr:[]).map(g=>({category_id:String(g.id),category_name:g.title||g.name||'Other'}));
+}
+async function stalkerFetchRadioList(cats){return stalkerFetchAllOrByCategory('radio','genre','number',cats)}
 /* Shared item-shape mappers, reused by loadTypeStalker's field-by-field remapping. */
 function mapStalkerLive(c){return {_type:'live',stream_id:String(c.id),name:c.name||c.title||'Untitled',stream_icon:c.logo||'',category_id:String(c.tv_genre_id||c.genre_id||c._srcCat||''),_cmd:c.cmd||''}}
 function mapStalkerVod(c){return {_type:'vod',stream_id:String(c.id),name:c.name||c.title||'Untitled',stream_icon:c.screenshot_uri||c.logo||'',category_id:String(c.category_id||c._srcCat||''),_cmd:c.cmd||'',container_extension:String(c.container||'').replace(/^\./,''),_raw:c}}
 function mapStalkerSeries(c){return {_type:'series',series_id:String(c.id),stream_id:String(c.id),name:c.name||c.title||'Untitled',cover:c.screenshot_uri||c.logo||'',category_id:String(c.category_id||c._srcCat||''),_cmd:c.cmd||'',_raw:c}}
+function mapStalkerRadio(c){return {_type:'radio',stream_id:String(c.id),name:c.name||c.title||'Untitled',stream_icon:c.logo||'',category_id:String(c.tv_genre_id||c.genre_id||c._srcCat||''),_cmd:c.cmd||''}}
 /* Null-safe: a failed fetch no longer wipes out whatever was already loaded for this type. */
 async function loadTypeStalker(type){
-  if(type==='live')S.loadingLive=true;else if(type==='vod')S.loadingVod=true;else S.loadingSeries=true;
+  if(type==='live')S.loadingLive=true;else if(type==='vod')S.loadingVod=true;else if(type==='series')S.loadingSeries=true;else S.loadingRadio=true;
   renderAll();
   try{
     if(type==='live'){
@@ -1239,17 +1262,25 @@ async function loadTypeStalker(type){
       const items=await stalkerFetchVodList(S.vodCats);
       if(items===null){toast('Could not load Movies — check your connection and try again.');}
       else{S.vod=items.map(mapStalkerVod);S.loadedVod=true;}
-    }else{
+    }else if(type==='series'){
       S.seriesCats=await stalkerFetchSeriesCategories();
       const items=await stalkerFetchSeriesList(S.seriesCats);
       if(items===null){toast('Could not load Series — check your connection and try again.');}
       else{S.series=items.map(mapStalkerSeries);S.loadedSeries=true;}
+    }else{
+      /* Not every Stalker/Ministra portal carries a radio lineup — an empty result here (as
+         opposed to a fetch failure, which still shows the toast) just means this provider has
+         none, so the Radio tab quietly reads "0 stations" instead of erroring. */
+      S.radioCats=await stalkerFetchRadioGenres();
+      const items=await stalkerFetchRadioList(S.radioCats);
+      if(items===null){toast('Could not load Radio — check your connection and try again.');}
+      else{S.radio=items.map(mapStalkerRadio);S.loadedRadio=true;}
     }
   }catch(e){toast(mapStalkerError(e))}
   finally{
-    if(type==='live')S.loadingLive=false;else if(type==='vod')S.loadingVod=false;else S.loadingSeries=false;
-    const countId=type==='live'?'liveCount':type==='vod'?'vodCount':'seriesCount';
-    const n=(type==='live'?S.live:type==='vod'?S.vod:S.series).length;
+    if(type==='live')S.loadingLive=false;else if(type==='vod')S.loadingVod=false;else if(type==='series')S.loadingSeries=false;else S.loadingRadio=false;
+    const countId=type==='live'?'liveCount':type==='vod'?'vodCount':type==='series'?'seriesCount':'radioCount';
+    const n=(type==='live'?S.live:type==='vod'?S.vod:type==='series'?S.series:S.radio).length;
     if($(countId))$(countId).textContent=n.toLocaleString();
     if(typeof updateHomeCounts==='function')updateHomeCounts();
     renderAll();
@@ -1258,7 +1289,7 @@ async function loadTypeStalker(type){
 async function resolveStalkerLink(x){
   const cmd=x._cmd||x.cmd;
   if(!cmd)throw Error('Could not create a Stalker session. Make sure this MAC is activated by your IPTV provider.');
-  const t=typeOf(x)==='vod'?'vod':typeOf(x)==='series'?'series':'itv';
+  const t=typeOf(x)==='vod'?'vod':typeOf(x)==='series'?'series':typeOf(x)==='radio'?'radio':'itv';
   /* v92: some real Stalker/Ministra portals (confirmed on this one: the SAME channel succeeded
      one moment and failed the next under identical conditions) intermittently reject create_link
      with a transient WAF block or an "Authorization failed" app response even when the
@@ -1378,7 +1409,7 @@ async function loginStalker(){
    opened so far this session — showing that length as "0" right after a successful login used
    to read as "nothing here" when really nothing had been asked for yet. Show — (unknown/not
    loaded) until at least one category has actually loaded, then show the running total. */
-function updateHomeCounts(){if($('homeLiveCount'))$('homeLiveCount').textContent=S.live.length?S.live.length.toLocaleString():'—';if($('homeVodCount'))$('homeVodCount').textContent=S.vod.length?S.vod.length.toLocaleString():'—';if($('homeSeriesCount'))$('homeSeriesCount').textContent=S.series.length?S.series.length.toLocaleString():'—';}
+function updateHomeCounts(){if($('homeLiveCount'))$('homeLiveCount').textContent=S.live.length?S.live.length.toLocaleString():'—';if($('homeVodCount'))$('homeVodCount').textContent=S.vod.length?S.vod.length.toLocaleString():'—';if($('homeSeriesCount'))$('homeSeriesCount').textContent=S.series.length?S.series.length.toLocaleString():'—';if($('homeRadioCount'))$('homeRadioCount').textContent=S.radio.length?S.radio.length.toLocaleString():'—';}
 function showHome(){updateHomeCounts();if($('catpage'))$('catpage').classList.add('hidden');if($('home'))$('home').classList.remove('hidden');}
 /* v90: tapping a Home card now opens a beautiful full-screen CATEGORY page for that type
    (All / Favorites / Recently Played + every category with its count + a favorite star).
@@ -1386,7 +1417,8 @@ function showHome(){updateHomeCounts();if($('catpage'))$('catpage').classList.ad
 const CATPAGE_META={
   live:{label:'Live TV',unit:'channels',icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12.5" rx="2.2"/><path d="M8 21h8M12 18.5V21"/><path d="M9.6 9.4l4.4 2.85-4.4 2.85z" fill="currentColor" stroke="none"/></svg>'},
   vod:{label:'Movies',unit:'titles',icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="15" rx="2.4"/><path d="M7.5 4.5v15M16.5 4.5v15M3 9.5h4.5M16.5 9.5H21M3 14.5h4.5M16.5 14.5H21"/></svg>'},
-  series:{label:'Series',unit:'shows',icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7.5" width="18" height="12" rx="2.2"/><path d="M7 7.5l3-3.2M13 7.5l3.2-3.3"/><path d="M9.8 11l4.2 2.6-4.2 2.6z" fill="currentColor" stroke="none"/></svg>'}
+  series:{label:'Series',unit:'shows',icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7.5" width="18" height="12" rx="2.2"/><path d="M7 7.5l3-3.2M13 7.5l3.2-3.3"/><path d="M9.8 11l4.2 2.6-4.2 2.6z" fill="currentColor" stroke="none"/></svg>'},
+  radio:{label:'Radio',unit:'stations',icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 010 8.49M7.76 16.25a6 6 0 010-8.49M19.07 4.93a10 10 0 010 14.14M4.93 19.07a10 10 0 010-14.14"/></svg>'}
 };
 const CP_STAR='<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 3.6l2.6 5.27 5.82.85-4.21 4.1.99 5.79L12 16.9l-5.2 2.73.99-5.79-4.21-4.1 5.82-.85z"/></svg>';
 const CP_CLOCK='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 1.8"/></svg>';
@@ -1411,7 +1443,7 @@ function showCategories(tab,restore){
 function renderCatPage(){
   const list_=$('catList');if(!list_)return;
   const meta=CATPAGE_META[S.tab]||CATPAGE_META.live;
-  const loading=S.tab==='live'?S.loadingLive:S.tab==='vod'?S.loadingVod:S.loadingSeries;
+  const loading=S.tab==='live'?S.loadingLive:S.tab==='vod'?S.loadingVod:S.tab==='series'?S.loadingSeries:S.loadingRadio;
   const total=list().length;
   /* total is now just "what's loaded so far" (items load per-category on demand), not the whole
      catalog — the subtitle says so instead of implying total is the full count. */
@@ -1458,6 +1490,10 @@ function backToCategories(){showCategories(S.tab,true);}
 const TYPE_API={live:['get_live_categories','get_live_streams','liveCount'],vod:['get_vod_categories','get_vod_streams','vodCount'],series:['get_series_categories','get_series','seriesCount']};
 async function loadType(type){
   if(S.provider==='stalker')return loadTypeStalker(type);
+  /* Xtream Codes panels have no radio API (no such thing as get_radio_streams) — Radio only
+     exists for Stalker/Ministra portals. Mark it loaded-empty instead of crashing on the
+     missing TYPE_API entry, so the tab just quietly reads "0 stations". */
+  if(type==='radio'){S.radioCats=[];S.radio=[];S.loadedRadio=true;if(typeof updateHomeCounts==='function')updateHomeCounts();renderAll();return;}
   const [catA,strmA,countId]=TYPE_API[type];
   if(type==='live')S.loadingLive=true;else if(type==='vod')S.loadingVod=true;else S.loadingSeries=true;
   renderAll();
@@ -1479,9 +1515,9 @@ async function loadType(type){
     renderAll();
   }
 }
-function ensureTypeLoaded(type){const loaded=type==='live'?S.loadedLive:type==='vod'?S.loadedVod:S.loadedSeries;const loading=type==='live'?S.loadingLive:type==='vod'?S.loadingVod:S.loadingSeries;if(!loaded&&!loading)return loadType(type);}
+function ensureTypeLoaded(type){const loaded=type==='live'?S.loadedLive:type==='vod'?S.loadedVod:type==='series'?S.loadedSeries:S.loadedRadio;const loading=type==='live'?S.loadingLive:type==='vod'?S.loadingVod:type==='series'?S.loadingSeries:S.loadingRadio;if(!loaded&&!loading)return loadType(type);}
 async function refreshAll(){
-  S.loadedLive=S.loadedVod=S.loadedSeries=false;
+  S.loadedLive=S.loadedVod=S.loadedSeries=S.loadedRadio=false;
   /* v83: show each stage on the loading screen, one after another (sequential = no concurrent
      requests the panel might drop), then "Load completed" before entering the app. */
   load(true,'Loading Live TV…');   await loadType('live');
@@ -1491,7 +1527,7 @@ async function refreshAll(){
   await new Promise(r=>setTimeout(r,750));
   load(false);
 }
-function renderAll(){renderCats();renderGrid();if($('catpage')&&!$('catpage').classList.contains('hidden'))renderCatPage();document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===S.tab));document.body.dataset.activeTab=S.tab;const label=S.tab==='live'?'Live Channels':S.tab==='vod'?'Movies':'Series';$('sectionTitle').textContent=label;$('sectionSub').textContent=filtered().length.toLocaleString()+' items'}
+function renderAll(){renderCats();renderGrid();if($('catpage')&&!$('catpage').classList.contains('hidden'))renderCatPage();document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===S.tab));document.body.dataset.activeTab=S.tab;const label=S.tab==='live'?'Live Channels':S.tab==='vod'?'Movies':S.tab==='series'?'Series':'Radio';$('sectionTitle').textContent=label;$('sectionSub').textContent=filtered().length.toLocaleString()+' items'}
 function renderCats(){
   const rows=[
     `<button class="cat ${!S.cat?'active':''}" data-cat=""><span class="catStar spacer"></span><span class="catName">All</span><span class="catCount">${list().length}</span></button>`,
@@ -1525,14 +1561,15 @@ function renderGrid(){
   let html;
   if(mode==='grid'){
     /* v5.1: poster-thumbnail grid — big artwork, title + year, favourite in the corner. */
-    html=arr.slice(0,900).map(x=>{const logo=logoOf(x);const active=S.current&&keyOf(S.current)===keyOf(x);const fav=S.favs.has(keyOf(x));const colorful=typeOf(x)!=='live';return `<div class="gcard ${active?'active':''}" data-key="${esc(keyOf(x))}" role="button" tabindex="0"><div class="gposter"${colorful?` style="background:${accentBg(nameOf(x))}"`:''}><span class="gph">▶</span>${logo?`<img loading="lazy" src="${esc(logo)}" onerror="this.remove()">`:''}<button class="gstar" type="button" data-fav="${esc(keyOf(x))}" data-off="${fav?'0':'1'}" aria-label="Favorite">${fav?'★':'☆'}</button>${typeOf(x)!=='live'?`<button class="ginfo" type="button" data-info="${esc(keyOf(x))}" aria-label="Details">⋮</button>`:''}</div><div class="gtitle">${esc(nameOf(x))}</div><div class="gmeta">${esc(gridMeta(x))}</div></div>`}).join('');
+    html=arr.slice(0,900).map(x=>{const logo=logoOf(x);const active=S.current&&keyOf(S.current)===keyOf(x);const fav=S.favs.has(keyOf(x));const colorful=!isLiveLike(x);return `<div class="gcard ${active?'active':''}" data-key="${esc(keyOf(x))}" role="button" tabindex="0"><div class="gposter"${colorful?` style="background:${accentBg(nameOf(x))}"`:''}><span class="gph">▶</span>${logo?`<img loading="lazy" src="${esc(logo)}" onerror="this.remove()">`:''}<button class="gstar" type="button" data-fav="${esc(keyOf(x))}" data-off="${fav?'0':'1'}" aria-label="Favorite">${fav?'★':'☆'}</button>${colorful?`<button class="ginfo" type="button" data-info="${esc(keyOf(x))}" aria-label="Details">⋮</button>`:''}</div><div class="gtitle">${esc(nameOf(x))}</div><div class="gmeta">${esc(gridMeta(x))}</div></div>`}).join('');
   }else{
-    html=arr.slice(0,900).map(x=>{const logo=logoOf(x);const active=S.current&&keyOf(S.current)===keyOf(x);const colorful=typeOf(x)!=='live';return `<div class="card ${active?'active':''}" data-key="${esc(keyOf(x))}" role="button" tabindex="0"><div class="poster"${colorful&&!logo?` style="background:${accentBg(nameOf(x))}"`:''}>${logo?`<img loading="lazy" src="${esc(logo)}" onerror="this.remove()">`:'▶'}</div><div class="cardText"><div class="ctitle">${esc(nameOf(x))}</div><div class="cmeta">${esc(typeOf(x).toUpperCase())} ${x.container_extension?'- '+esc(x.container_extension):''}</div></div><div class="rowActions">${rowPlayerButtons(esc(keyOf(x)),typeOf(x))}<button class="star" type="button" aria-label="Favorite" data-fav="${esc(keyOf(x))}">${S.favs.has(keyOf(x))?'★':'☆'}</button></div></div>`}).join('');
+    html=arr.slice(0,900).map(x=>{const logo=logoOf(x);const active=S.current&&keyOf(S.current)===keyOf(x);const colorful=!isLiveLike(x);return `<div class="card ${active?'active':''}" data-key="${esc(keyOf(x))}" role="button" tabindex="0"><div class="poster"${colorful&&!logo?` style="background:${accentBg(nameOf(x))}"`:''}>${logo?`<img loading="lazy" src="${esc(logo)}" onerror="this.remove()">`:'▶'}</div><div class="cardText"><div class="ctitle">${esc(nameOf(x))}</div><div class="cmeta">${esc(typeOf(x).toUpperCase())} ${x.container_extension?'- '+esc(x.container_extension):''}</div></div><div class="rowActions">${rowPlayerButtons(esc(keyOf(x)),typeOf(x))}<button class="star" type="button" aria-label="Favorite" data-fav="${esc(keyOf(x))}">${S.favs.has(keyOf(x))?'★':'☆'}</button></div></div>`}).join('');
   }
-  g.innerHTML=html||(tabLoading()?'<div style="color:var(--muted);padding:18px">Loading '+(S.tab==='live'?'channels':S.tab==='vod'?'movies':'series')+'…</div>':'<div style="padding:18px"><div style="color:var(--muted);margin-bottom:10px">No '+(S.tab==='live'?'channels':S.tab==='vod'?'movies':'series')+' loaded.</div><button class="pillbtn primary" onclick="loadType(S.tab)">Load '+(S.tab==='live'?'channels':S.tab==='vod'?'movies':'series')+'</button></div>');
+  const tabUnit=(CATPAGE_META[S.tab]||CATPAGE_META.live).unit;
+  g.innerHTML=html||(tabLoading()?'<div style="color:var(--muted);padding:18px">Loading '+tabUnit+'…</div>':'<div style="padding:18px"><div style="color:var(--muted);margin-bottom:10px">No '+tabUnit+' loaded.</div><button class="pillbtn primary" onclick="loadType(S.tab)">Load '+tabUnit+'</button></div>');
   updateViewToggle();
 }
-function tabLoading(){return S.tab==='live'?!!S.loadingLive:S.tab==='vod'?!!S.loadingVod:!!S.loadingSeries}
+function tabLoading(){return S.tab==='live'?!!S.loadingLive:S.tab==='vod'?!!S.loadingVod:S.tab==='series'?!!S.loadingSeries:!!S.loadingRadio}
 /* v87: per-row quick-launch player buttons (replace the up/down reorder arrows). Tapping one
    opens that channel/movie straight in the chosen app — no popup. Device-appropriate set. */
 function rowPlayerButtons(key,type){
@@ -1544,7 +1581,7 @@ function rowPlayerButtons(key,type){
      launch into VLC, so it appears next to Infuse / nPlayer for live channels as well. */
   return list.map(([m,lbl])=>'<button class="qp qp-'+m+'" type="button" data-play="'+m+'" data-key="'+key+'" title="Open in '+lbl+'">'+lbl+'</button>').join('');
 }
-function findByKey(k){return [...S.live,...S.vod,...S.series].find(x=>keyOf(x)===k)}
+function findByKey(k){return [...S.live,...S.vod,...S.series,...S.radio].find(x=>keyOf(x)===k)}
 function flattenEpisodes(data){const out=[];const walk=v=>{if(!v)return;if(Array.isArray(v)){v.forEach(walk);return}if(typeof v==='object'){const hasStream=('id'in v)||('stream_id'in v)||('episode_num'in v)||('container_extension'in v)||('direct_source'in v)||('title'in v);if(hasStream)out.push(v);else Object.values(v).forEach(walk)}};walk(data);return out}
 async function openEpisodePicker(x){if(S.provider==='stalker')return openEpisodePickerStalker(x);load(true,'Loading episodes...');try{const d=await getJson('get_series_info','&series_id='+encodeURIComponent(idOf(x)));const eps=flattenEpisodes(d.episodes||d).map((ep,i)=>({...ep,name:ep.title||ep.name||('Episode '+(ep.episode_num||i+1)),_type:'series',_seriesName:nameOf(x)})).filter(ep=>idOf(ep)||ep.direct_source||ep.stream_url);eps.sort((a,b)=>(Number(a.season||a.season_number||0)-Number(b.season||b.season_number||0))||(Number(a.episode_num||a.episode||0)-Number(b.episode_num||b.episode||0)));if(!eps.length)throw Error('No episodes found');$('episodeTitle').textContent=nameOf(x);$('episodeList').innerHTML=eps.map((ep,i)=>`<button class="episodeBtn" data-ep="${i}"><strong>${esc(ep.name)}</strong><span>${esc(ep.container_extension||'mp4')}</span></button>`).join('');$('episodeSheet').classList.add('show');$('episodeList').onclick=e=>{const b=e.target.closest('.episodeBtn');if(!b)return;$('episodeSheet').classList.remove('show');playItem(eps[Number(b.dataset.ep)])};}catch(e){toast(e.message||'Episodes could not load')}finally{load(false)}}
 /* v3.5: Movie/Series details popup — opens when the poster is tapped. Pulls the rich metadata
@@ -1557,7 +1594,7 @@ function _infoRating(o){const r=_pick(o,['rating']);const r5=_pick(o,['rating_5b
 function _infoDuration(o){const d=_pick(o,['duration','episode_run_time','runtime']);if(!d)return '';if(/^\d+$/.test(d)){const n=Number(d);return n>0?(n>=60?Math.floor(n/60)+'h '+(n%60)+'m':n+' min'):''}const m=String(d).match(/\d{1,2}:\d{2}:\d{2}/);return m?m[0]:d}
 async function openInfo(x){
   const type=typeOf(x);
-  if(type==='live'){playItem(x);return;}
+  if(isLiveLike(x)){playItem(x);return;}
   _infoItem=x;
   const poster=logoOf(x);
   const setBg=u=>{$('infoHeroBg').style.backgroundImage=u?`url("${String(u).replace(/["\\]/g,'')}")`:'none'};
@@ -1654,7 +1691,7 @@ async function testTranscoder(){
 function browserSafeExt(ext){return ['mp4','m4v','m3u8','mp4a'].includes(String(ext||'').replace(/^\./,'').toLowerCase())}
 function mkvLike(ext){return ['mkv','avi','wmv','flv','mov','divx','xvid'].includes(String(ext||'').replace(/^\./,'').toLowerCase())}
 function fastestLiveUrl(ch){return directUrl(ch,'m3u8')}
-function nativeAppUrl(ch){if(!ch)return '';const direct=String(ch.direct_source||ch.stream_url||'').trim();if(direct)return direct;const type=typeOf(ch);const ext=type==='live'?'ts':(ch.container_extension||'mp4');return directUrl(ch,ext)}
+function nativeAppUrl(ch){if(!ch)return '';const direct=String(ch.direct_source||ch.stream_url||'').trim();if(direct)return direct;const ext=isLiveLike(ch)?'ts':(ch.container_extension||'mp4');return directUrl(ch,ext)}
 function vlcUrl(u){const ua=navigator.userAgent||'',enc=encodeURIComponent(u);if(/iphone|ipad|ipod/i.test(ua))return'vlc-x-callback://x-callback-url/stream?url='+enc;if(/android/i.test(ua)){try{const x=new URL(u);return`intent://${x.host}${x.pathname}${x.search}#Intent;scheme=${x.protocol.replace(':','')};package=org.videolan.vlc;type=video/*;end`}catch{}}return'vlc://x-callback-url/stream?url='+enc}
 /* --- v18: device + category aware external player routing.
    ExoPlayer and VLC are native apps, so the page hands the ORIGINAL stream URL to them
@@ -1705,7 +1742,7 @@ function playerLabel(mode){if(mode==='vlc')return'VLC';if(mode==='mx')return'MX 
    others — after v45 external players stopped opening anything. Live external handoff is
    back to the proven raw .ts. Live-stream resilience is the BUILT-IN player's job (v43
    persistent resume); external apps get the format the panel demonstrably serves. */
-function externalStreamUrl(x){const direct=String(x.direct_source||x.stream_url||'').trim();if(direct)return direct;return typeOf(x)==='live'?directUrl(x,'ts'):directUrl(x,String(x.container_extension||'mp4'))}
+function externalStreamUrl(x){const direct=String(x.direct_source||x.stream_url||'').trim();if(direct)return direct;return isLiveLike(x)?directUrl(x,'ts'):directUrl(x,String(x.container_extension||'mp4'))}
 async function fetchTextChain(u){const tries=blocked(u)?[proxyUrl(u)]:[u,proxyUrl(u)];for(const t of tries){try{const r=await fetchWithTimeout(t,8000);if(r.ok)return await r.text()}catch(e){}}return''}
 function androidIntentUrl(u,pkg,title){try{const x=new URL(u);const scheme=x.protocol.replace(':','');return`intent://${x.host}${x.pathname}${x.search}#Intent;scheme=${scheme};action=android.intent.action.VIEW;type=video/*;${pkg?`package=${pkg};`:''}S.title=${encodeURIComponent(title||'Media26')};end`}catch{return''}}
 function iosVlcUrl(u){return'vlc-x-callback://x-callback-url/stream?url='+encodeURIComponent(u)}
@@ -1946,7 +1983,7 @@ function updateLiveControls(){/* Live has no seekable timeline — hide Play/Pau
    keep only Mute, PiP, Fullscreen. Movies/Series keep full controls. v55: also toggle a
    `liveMode` class on the player as a CSS-level guarantee (with !important) so seek controls
    can never appear on live even if some other code path touches their inline style. */
-  const isLive=S.current&&typeOf(S.current)==='live';
+  const isLive=S.current&&isLiveLike(S.current);
   const isVod=!!(S.current&&!isLive);
   /* v70: play/pause shows on all three; only the rewind/forward skips are hidden on live
      (nothing to skip on a live timeline). The scrubber shows on all three — on live it's a
@@ -1985,7 +2022,7 @@ async function playItemPreview(x){setCurrentItem(x);$('extActions').classList.ad
    fallback step before start. Select it per category in Stream Tools ("Basic player"). */
 async function playItemBasic(x){
   setCurrentItem(x);cleanup();
-  const token=S.seq,v=$('video'),live=typeOf(x)==='live';
+  const token=S.seq,v=$('video'),live=isLiveLike(x);
   $('extActions').classList.add('hidden');
   /* v63: show the channel logo + loading bar right away so the wait reads as "this channel is
      loading", not a blank screen. */
@@ -2362,8 +2399,8 @@ function plan(x){
   /* v20: dedupe by kind+url (was url only, which silently dropped legitimate fallbacks that
      reuse one URL with a different engine — e.g. native m3u8 vs hls.js m3u8) */
   const add=(kind,label,url,front=false)=>{if(!url||p.some(a=>a.url===url&&a.kind===kind))return;front?p.unshift({kind,label,url}):p.push({kind,label,url})};
-  const addTrans=(label,url,front=false)=>{const t=transcodeUrl(url,type==='live'?'live':'vod');if(t)add('hls',label+' Transcoded',t,front)};
-  if(type==='live'){
+  const addTrans=(label,url,front=false)=>{const t=transcodeUrl(url,isLiveLike(x)?'live':'vod');if(t)add('hls',label+' Transcoded',t,front)};
+  if(isLiveLike(x)){
     const m3u8=directUrl(x,'m3u8'),ts=directUrl(x,'ts'),ext=orig&&orig!=='m3u8'?directUrl(x,orig):'';
     /* FIX (root cause, provider-confirmed): this account's own Xtream API reports
        max_connections:1. Segment requests return HTTP 401 the instant a second connection to
@@ -2505,7 +2542,7 @@ async function playItem(item,fromAlternative=false){
      specific app, use the app buttons on the row. No popup. */
   const pm=(S.playerModes&&S.playerModes[typeOf(x)])||'auto';
   let mode=(pm==='auto'||pm==='exo'||pm==='browser')?'basic':pm;
-  if(typeOf(x)==='live'&&mode==='vlc')mode='basic';
+  if(isLiveLike(x)&&mode==='vlc')mode='basic';
   await routePlayback(x,mode,fromAlternative?true:false);
 }
 /* dispatcher only — the same routing playItem always used, factored out so the chooser can
@@ -2530,7 +2567,7 @@ async function routePlayback(x,mode,fromAlternative){
        connection" wait and no second chooser on the preview. VOD isn't the fragile live
        single-connection case the release gate exists for, and the app opens straight from the
        popup tap's activation. Live keeps the gate for reliability. */
-    await playItemExternal(x,mode,typeOf(x)!=='live');return;
+    await playItemExternal(x,mode,!isLiveLike(x));return;
   }
   await playItemBasic(x);
 }
@@ -2549,7 +2586,7 @@ function prePreview(x){
   /* the poster now fills the preview, so the small centred thumbnail would be redundant */
   if(thumb){$('stateThumb').classList.add('hidden')}else{$('stateThumb').classList.add('hidden')}
   $('stateTitle').textContent=nameOf(x);
-  $('stateText').textContent=typeOf(x)==='live'?'Live channel':'Preparing…';
+  $('stateText').textContent=typeOf(x)==='live'?'Live channel':typeOf(x)==='radio'?'Radio station':'Preparing…';
   if($('stateProgress'))$('stateProgress').classList.remove('hidden');
   $('overlay').style.display='grid';
   $('netStatus').textContent='Loading';$('miniMeta').textContent='Loading';
@@ -2576,8 +2613,8 @@ function playerOptions(type){
   if(d==='android')ext=[{mode:'vlc',name:'VLC',desc:'External app'},{mode:'mx',name:'MX Player',desc:'External app'},{mode:'km',name:'KM Player',desc:'External app'},{mode:'exo',name:'Other app…',desc:'Pick any installed player'}];
   else if(d==='ios')ext=[{mode:'vlc',name:'VLC',desc:'External app'},{mode:'km',name:'KM Player',desc:'External app'}];
   else ext=[{mode:'vlc',name:'VLC',desc:'Desktop app'}];
-  /* v88: no VLC for Live — it drops live channels mid-view */
-  if(type==='live')ext=ext.filter(o=>o.mode!=='vlc');
+  /* v88: no VLC for Live (or Radio) — it drops continuous streams mid-view */
+  if(type==='live'||type==='radio')ext=ext.filter(o=>o.mode!=='vlc');
   return [basic,...ext];
 }
 let _chooserItem=null,_chooserPick=null;
@@ -2654,7 +2691,7 @@ async function tryPlans(plans,i){
   const v=$('video');
   if(!plans[i]){if(await tryLiveAlternative())return;fail('This stream is unavailable. Try another channel version.');return}
   cleanup();
-  const token=++S.seq,p=plans[i],live=typeOf(S.current)==='live',transcoded=/Transcoded/i.test(p.label);
+  const token=++S.seq,p=plans[i],live=isLiveLike(S.current),transcoded=/Transcoded/i.test(p.label);
   /* between attempts, give the origin a beat to release the previous slot */
   if(i>0&&live){$('netStatus').textContent='Switching path';await new Promise(r=>setTimeout(r,1500));if(token!==S.seq)return}
   $('netStatus').textContent='Loading '+p.label;$('miniMeta').textContent='Trying '+p.label;
@@ -2861,7 +2898,7 @@ async function checkAccountConflict(){
 function fail(msg){
   /* v39: if a LIVE stream died, check whether the account's one slot is now held by another
      device (our own connection is already torn down here) and, if so, explain it. */
-  try{if(S.current&&typeOf(S.current)==='live'){setTimeout(function(){checkAccountConflict().then(function(c){if(c)showAccountConflict()})},1800);}}catch(e){}
+  try{if(S.current&&isLiveLike(S.current)){setTimeout(function(){checkAccountConflict().then(function(c){if(c)showAccountConflict()})},1800);}}catch(e){}
   const hasTrans=!!transcoderBase();
   const isApple=/iphone|ipad|ipod/i.test(navigator.userAgent||'');
   $('overlay').style.display='grid';
@@ -2894,7 +2931,7 @@ function fail(msg){
 }
 function seekBy(sec){
   const v=$('video');
-  if(!S.current||typeOf(S.current)==='live'){toast('Seek is available for Movies and Series');return}
+  if(!S.current||isLiveLike(S.current)){toast('Seek is available for Movies and Series');return}
   /* v52: fall back to the seekable range when duration isn't a finite number (streamed VOD),
      and record the seek so the stall watchdog treats the buffering that follows as "seeking",
      not "dead stream" — the watchdog reloading was what snapped the movie back to the start. */
@@ -2940,7 +2977,7 @@ function updateMediaSession(x){
   try{
     const logo=logoOf(x);
     navigator.mediaSession.metadata=new MediaMetadata({
-      title:nameOf(x),artist:'M26 XT Player',album:typeOf(x).toUpperCase(),
+      title:nameOf(x),artist:'M26 ST Player',album:typeOf(x).toUpperCase(),
       artwork:logo?[{src:logo,sizes:'512x512',type:'image/png'},{src:logo,sizes:'256x256',type:'image/png'}]:[]
     });
   }catch(e){}
@@ -3015,7 +3052,7 @@ function downloadM3u(){
 function downloadCurrent(){
   const x=S.current;
   if(!x){toast('Open a movie or series first');return}
-  if(typeOf(x)==='live'){toast('Downloads are for movies & series — live is a continuous stream');return}
+  if(isLiveLike(x)){toast('Downloads are for movies & series — live/radio are continuous streams');return}
   const raw=externalStreamUrl(x);
   if(!raw){toast('No downloadable file for this title');return}
   /* always fetch through the SAME-ORIGIN proxy: browsers only honour the download filename for
@@ -3134,10 +3171,10 @@ $('video').addEventListener('pause',showBar);
 $('video').addEventListener('playing',()=>{const pbx=$('playerBox');if(pbx)pbx.classList.remove('posterPreview');});
 /* v85: remember the play position of the current Movie/Series (session-only) so replaying it
    resumes where it left off. Cleared on refresh/force-close (it lives in memory). */
-$('video').addEventListener('timeupdate',()=>{const v=$('video');if(S.current&&typeOf(S.current)!=='live'){const t=v.currentTime||0;if(t>1&&isFinite(t))S.resume[keyOf(S.current)]=t;}});
+$('video').addEventListener('timeupdate',()=>{const v=$('video');if(S.current&&!isLiveLike(S.current)){const t=v.currentTime||0;if(t>1&&isFinite(t))S.resume[keyOf(S.current)]=t;}});
 document.addEventListener('fullscreenchange',()=>{const fsb=$('fsBtn');if(fsb)fsb.innerHTML=document.fullscreenElement?ICONS.fsExit:ICONS.fsEnter;showBar()});
 /* v27: switching Live/Movies/Series keeps the menu OPEN (so every category is visible to pick from) and resets to All — the grid behind it already lists the full catalog of that type. Only picking a category closes the sheet. */
-document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;S.cat='';renderAll();ensureTypeLoaded(S.tab);if(S.tab==='vod'||S.tab==='series')warmTranscoder();});$('search').oninput=e=>{S.q=e.target.value;renderAll()};$('cats').onclick=e=>{const st=e.target.closest('[data-favcat]');if(st){e.stopPropagation();const fk=catFavKey(st.dataset.favcat);S.favCats.has(fk)?S.favCats.delete(fk):S.favCats.add(fk);saveFavCats();renderCats();return}const b=e.target.closest('.cat');if(!b)return;S.cat=b.dataset.cat;renderAll();if(mobile())$('side').classList.remove('open')};$('episodeClose').onclick=()=>$('episodeSheet').classList.remove('show');$('episodeSheet').onclick=e=>{if(e.target.id==='episodeSheet')$('episodeSheet').classList.remove('show')};let lastCardTap={key:'',time:0};$('grid').onclick=e=>{const pl=e.target.closest('[data-play]');if(pl){e.stopPropagation();const x=findByKey(pl.dataset.key);if(x)routePlayback(x,pl.dataset.play,false);return}const fav=e.target.closest('[data-fav]');if(fav){e.stopPropagation();const k=fav.dataset.fav;S.favs.has(k)?S.favs.delete(k):S.favs.add(k);saveFavs();renderAll();return}/* v5.6: ⋮ on a poster opens the details popup */const gi=e.target.closest('[data-info]');if(gi){e.stopPropagation();const x=findByKey(gi.dataset.info);if(x)openInfo(x);return}/* v5.1: tap a poster to play (series opens its episodes) */const gc=e.target.closest('.gcard');if(gc){const x=findByKey(gc.dataset.key);if(x)playItem(x);return}const c=e.target.closest('.card');if(c){const x=findByKey(c.dataset.key);if(!x)return;/* v3.5: tapping the POSTER opens the details popup (movies/series); the name still plays */if(e.target.closest('.poster')&&typeOf(x)!=='live'){openInfo(x);return}const now=Date.now(),dbl=lastCardTap.key===c.dataset.key&&now-lastCardTap.time<520;lastCardTap={key:c.dataset.key,time:now};if(dbl){fs();return}playItem(x)}};
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;S.cat='';renderAll();ensureTypeLoaded(S.tab);if(S.tab==='vod'||S.tab==='series')warmTranscoder();});$('search').oninput=e=>{S.q=e.target.value;renderAll()};$('cats').onclick=e=>{const st=e.target.closest('[data-favcat]');if(st){e.stopPropagation();const fk=catFavKey(st.dataset.favcat);S.favCats.has(fk)?S.favCats.delete(fk):S.favCats.add(fk);saveFavCats();renderCats();return}const b=e.target.closest('.cat');if(!b)return;S.cat=b.dataset.cat;renderAll();if(mobile())$('side').classList.remove('open')};$('episodeClose').onclick=()=>$('episodeSheet').classList.remove('show');$('episodeSheet').onclick=e=>{if(e.target.id==='episodeSheet')$('episodeSheet').classList.remove('show')};let lastCardTap={key:'',time:0};$('grid').onclick=e=>{const pl=e.target.closest('[data-play]');if(pl){e.stopPropagation();const x=findByKey(pl.dataset.key);if(x)routePlayback(x,pl.dataset.play,false);return}const fav=e.target.closest('[data-fav]');if(fav){e.stopPropagation();const k=fav.dataset.fav;S.favs.has(k)?S.favs.delete(k):S.favs.add(k);saveFavs();renderAll();return}/* v5.6: ⋮ on a poster opens the details popup */const gi=e.target.closest('[data-info]');if(gi){e.stopPropagation();const x=findByKey(gi.dataset.info);if(x)openInfo(x);return}/* v5.1: tap a poster to play (series opens its episodes) */const gc=e.target.closest('.gcard');if(gc){const x=findByKey(gc.dataset.key);if(x)playItem(x);return}const c=e.target.closest('.card');if(c){const x=findByKey(c.dataset.key);if(!x)return;/* v3.5: tapping the POSTER opens the details popup (movies/series); the name still plays */if(e.target.closest('.poster')&&!isLiveLike(x)){openInfo(x);return}const now=Date.now(),dbl=lastCardTap.key===c.dataset.key&&now-lastCardTap.time<520;lastCardTap={key:c.dataset.key,time:now};if(dbl){fs();return}playItem(x)}};
 if($('viewToggle'))$('viewToggle').onclick=()=>toggleViewMode();
 if($('infoClose'))$('infoClose').onclick=()=>$('infoSheet').classList.remove('show');
 if($('infoCancel'))$('infoCancel').onclick=()=>$('infoSheet').classList.remove('show');
@@ -3148,7 +3185,7 @@ if($('infoPlay'))$('infoPlay').onclick=()=>{const x=_infoItem;$('infoSheet').cla
    and caused a forced seek every 3 seconds = constant freeze/stutter/audio cuts.
    hls.js already manages live-edge position via liveSyncDuration; when hls.js is active
    we let it do its job and never seek manually. Manual rescue only for native/mpegts. */
-(function(){var v=$('video');if(!v)return;var lastCt=0,lastSeekAt=0;setInterval(function(){try{if(v.paused||v.ended||v.seeking){lastCt=v.currentTime||0;return;}var isLive=S&&S.current&&S.current._type==='live';var ct=v.currentTime||0;var hlsActive=!!S.hls;if(isLive&&!hlsActive&&v.buffered.length>0&&ct<lastCt-3&&(Date.now()-lastSeekAt)>6000){var edge=v.buffered.end(v.buffered.length-1),target=edge-4;if(target>ct+1&&isFinite(target)){v.currentTime=target;lastSeekAt=Date.now();if($('netStatus'))$('netStatus').textContent='Skipped to live';}}lastCt=v.currentTime||0;}catch(e){}},1000);})();
+(function(){var v=$('video');if(!v)return;var lastCt=0,lastSeekAt=0;setInterval(function(){try{if(v.paused||v.ended||v.seeking){lastCt=v.currentTime||0;return;}var isLive=S&&S.current&&isLiveLike(S.current);var ct=v.currentTime||0;var hlsActive=!!S.hls;if(isLive&&!hlsActive&&v.buffered.length>0&&ct<lastCt-3&&(Date.now()-lastSeekAt)>6000){var edge=v.buffered.end(v.buffered.length-1),target=edge-4;if(target>ct+1&&isFinite(target)){v.currentTime=target;lastSeekAt=Date.now();if($('netStatus'))$('netStatus').textContent='Skipped to live';}}lastCt=v.currentTime||0;}catch(e){}},1000);})();
 (function(){
   $('playBtn').innerHTML=ICONS.play;
   $('backBtn').innerHTML=ICONS.back10;
@@ -3166,6 +3203,7 @@ if($('infoPlay'))$('infoPlay').onclick=()=>{const x=_infoItem;$('infoSheet').cla
   /* version line under the developer credit on the login page — always reflects APP_VERSION,
      so it stays present and correct on every deployment. */
   if($('appVersionLine'))$('appVersionLine').textContent='Version v'+APP_VERSION;
+  if($('splashVersion'))$('splashVersion').textContent='Version v'+APP_VERSION;
 })();
 if($('stalkerPwToggle'))$('stalkerPwToggle').onclick=()=>{const inp=$('stalkerPass'),show=inp.type==='password';inp.type=show?'text':'password';$('stalkerPwToggle').innerHTML=show?ICONS.eyeOff:ICONS.eye};
 /* ===================== v69: on-bar Quality picker =====================
@@ -3347,7 +3385,7 @@ applyColour(savedColour());updateVolPct();
      often reports duration=Infinity but IS seekable). This is why the slider looked "not
      built": it bailed the moment duration wasn't a plain finite number. */
   const effDur=()=>{const d=v.duration;if(isFinite(d)&&d>0)return d;try{if(v.seekable&&v.seekable.length)return v.seekable.end(v.seekable.length-1)}catch(e){}return 0};
-  const isLiveNow=()=>!!(S.current&&typeOf(S.current)==='live');
+  const isLiveNow=()=>!!(S.current&&isLiveLike(S.current));
   const sync=()=>{
     /* v70: live shows the SAME scrubber design but as a read-only LIVE indicator — a full red
        bar with the handle at the live edge and a LIVE label, never a 0:00/0:00 timeline. */
@@ -3385,7 +3423,7 @@ applyColour(savedColour());updateVolPct();
   let sx=0,sy=0,mode='',lp=null,startVol=1,longActive=false,moved=false,active=false;
   const showHint=t=>{if(hint){hint.textContent=t;hint.classList.remove('hidden')}};
   const hideHint=()=>{if(hint)hint.classList.add('hidden')};
-  const isVod=()=>S.current&&typeOf(S.current)!=='live';
+  const isVod=()=>S.current&&!isLiveLike(S.current);
   const onStart=e=>{
     active=false;
     if(e.target.closest&&e.target.closest('.playerbar'))return;   /* leave controls alone */
