@@ -903,7 +903,7 @@ function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.re
 /* Version scheme restarts here at 5.0 by owner request; the previous 7.x line is retired.
    Bump this on every release that changes anything a user can see — it is the single source for
    the splash screen, the login screen and the version badges, so nothing else needs editing. */
-const APP_VERSION='5.0';
+const APP_VERSION='5.1';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1504,6 +1504,16 @@ async function resolveStalkerLink(x){
      cmd that's already a bare URL (no match, string passes through unchanged). */
   const clean=String(raw).replace(/^\S+\s+(?=https?:\/\/)/i,'').trim();
   if(!clean)throw Error('Could not create a Stalker session. Make sure this MAC is activated by your IPTV provider.');
+  /* v5.1: channels are stored with a placeholder cmd pointing at localhost ("auto
+     http://localhost/ch/51878") and create_link is meant to rewrite it to a reachable host. Some
+     portals hand the placeholder straight back — that address means "this machine" to whatever
+     tries to fetch it, so it is unplayable from anywhere, and the relay refuses it as a private
+     target. Say that plainly instead of letting the cascade fail as "stream unavailable". */
+  try{
+    const h=new URL(clean).hostname.toLowerCase();
+    if(h==='localhost'||h==='127.0.0.1'||h==='0.0.0.0'||h==='::1')
+      throw Object.assign(Error('The portal returned an internal address ('+h+') for this channel, which cannot be reached from outside the provider’s own server. Ask your provider to fix the stream URL for this channel.'),{code:'portal_internal_url'});
+  }catch(e){if(e&&e.code==='portal_internal_url')throw e}
   x.direct_source=clean;
   return clean;
 }
@@ -2623,6 +2633,36 @@ function plan(x){
      reuse one URL with a different engine — e.g. native m3u8 vs hls.js m3u8) */
   const add=(kind,label,url,front=false)=>{if(!url||p.some(a=>a.url===url&&a.kind===kind))return;front?p.unshift({kind,label,url}):p.push({kind,label,url})};
   const addTrans=(label,url,front=false)=>{const t=transcodeUrl(url,isLiveLike(x)?'live':'vod');if(t)add('hls',label+' Transcoded',t,front)};
+  /* v5.1: a Stalker/Ministra stream is resolved per play by create_link, which resolveStalkerLink
+     stores on direct_source. The id-templated Xtream URLs below cannot address one at all: a
+     Stalker session has no S.url/user/pass to build from, so every candidate came out as
+     "/live///1362.m3u8" and the whole cascade failed — which is what "Stream stopped" was. The
+     portal confirms the stored cmd is only a placeholder ("auto http://localhost/ch/51878"); the
+     playable URL exists solely in the create_link reply. Build the cascade from that. */
+  const stalkerUrl=S.provider==='stalker'?String(x.direct_source||'').trim():'';
+  if(stalkerUrl){
+    const tsOk=!!(window.mpegts&&mpegts.isSupported());
+    const isHls=/\.m3u8(\?|$)/i.test(stalkerUrl);
+    /* An http stream on an https page is mixed content and the browser blocks it outright, so in
+       that case the relay is the only way through and a "direct" attempt is a guaranteed stall. */
+    const direct=blocked(stalkerUrl)?'':stalkerUrl;
+    const relayed=proxyUrl(stalkerUrl);
+    if(isHls){
+      if(direct){add('native','Direct',direct);add('hls','Direct HLS',direct);}
+      add('native','Relay',relayed);
+      add('hls','Relay HLS',relayed);
+    }else{
+      if(tsOk&&direct)add('mpegts','Direct TS',direct);
+      if(tsOk)add('mpegts','Relay TS',relayed);
+      if(direct)add('native','Direct',direct);
+      add('native','Relay',relayed);
+      add('hls','Relay HLS',relayed);
+    }
+    /* Movies may be MKV/HEVC the browser cannot decode; the transcoder is the last resort. Live
+       and radio are continuous, so they stay on the direct/relay paths. */
+    if(!isLiveLike(x))addTrans('Stream',stalkerUrl);
+    return p;
+  }
   if(isLiveLike(x)){
     const m3u8=directUrl(x,'m3u8'),ts=directUrl(x,'ts'),ext=orig&&orig!=='m3u8'?directUrl(x,orig):'';
     /* FIX (root cause, provider-confirmed): this account's own Xtream API reports
