@@ -1113,6 +1113,14 @@ function commitStalkerMacField(){
 }
 const STALKER_EP_CANDIDATES=['portal.php','stalker_portal/server/load.php','server/load.php','c/portal.php'];
 const STALKER_PROXY=(()=>{try{return /^https?:$/.test(location.protocol)?location.origin+'/stalker-proxy':''}catch{return''}})();
+/* v97: these portals sit behind Cloudflare (tv.stream4k.cc, sw4u.net and the billing host all
+   resolve into Cloudflare ranges), while this app runs as a Cloudflare Worker — so portal calls
+   arrive at the origin from a datacenter IP carrying a MAG set-top-box User-Agent, which reads
+   as a bot. When bot protection challenges that, the reply is an HTML interstitial rather than
+   JSON, which used to surface only as the catch-all "Invalid response". Name it, because the fix
+   is on the portal's Cloudflare (allowlist the app / disable the challenge for the loader path),
+   not in this code. */
+function looksLikeCfBlock(t){return /cf-(ray|chl|browser-verification)|__cf_chl|Attention Required|Just a moment|Enable JavaScript and cookies|error code:\s*10\d\d|cloudflare/i.test(String(t||''))}
 async function stalkerRequest(type,action,extra={}){
   if(!STALKER_PROXY)throw Error('Could not reach the Stalker portal. Check the portal URL.');
   const st=S.stalker||{};
@@ -1127,7 +1135,7 @@ async function stalkerRequest(type,action,extra={}){
       if(!r.ok){lastErr=Error('HTTP '+r.status);continue}
       const txt=await r.text();
       if(!txt||!txt.trim()){lastErr=Error('Empty response');continue}
-      let data;try{data=JSON.parse(txt)}catch{lastErr=Error('Invalid response');continue}
+      let data;try{data=JSON.parse(txt)}catch{lastErr=Error(looksLikeCfBlock(txt)?'Blocked by the portal’s Cloudflare protection':'Invalid response (portal did not return JSON)');continue}
       st.endpoint=ep;
       return data;
     }catch(e){lastErr=e}
@@ -1267,7 +1275,7 @@ async function runPortalDiagnostics(write){
       const txt=await r.text();
       let note='';
       try{const j=JSON.parse(txt);const tk=j&&j.js&&j.js.token;note=tk?'  ← TOKEN OK':'  parsed, no token';if(tk&&!liveEp)liveEp=ep;}
-      catch{note='  not JSON'}
+      catch{note=looksLikeCfBlock(txt)?'  ← CLOUDFLARE CHALLENGE (portal is blocking this app)':'  not JSON'}
       emit('• /'+ep+'  ['+(Date.now()-t0)+'ms]  HTTP '+r.status+note+'\n    '+String(txt||'(empty body)').replace(/\s+/g,' ').slice(0,180));
     }catch(e){emit('• /'+ep+'  ['+(Date.now()-t0)+'ms]  REQUEST FAILED: '+((e&&e.message)||e))}
   }
@@ -1472,6 +1480,7 @@ function mapStalkerError(e,mac){
   const m=String((e&&e.message)||e||'');
   if(code==='not_activated')return 'This device MAC is not activated. Give '+(mac||(S.stalker&&S.stalker.mac)||'')+' to your IPTV provider and ask them to register it.';
   if(/HTTP 401|HTTP 403/.test(m))return 'Login rejected. Check your username and password.';
+  if(/Cloudflare/i.test(m)||/Cloudflare/i.test((e&&e.detail)||''))return 'Your portal’s Cloudflare protection is blocking this app. Allowlist it (or disable the bot challenge on the portal loader path) in the portal domain’s Cloudflare dashboard.';
   if(e&&e.detail)return m+' ('+e.detail+') — tap Portal diagnostics for the full reply.';
   return m||'Could not create a Stalker session. Make sure this MAC is activated by your IPTV provider.';
 }
