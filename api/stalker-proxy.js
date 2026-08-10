@@ -11,11 +11,11 @@
    set-top-box User-Agent the Stalker protocol requires — which can draw a bot challenge that
    answers with HTML instead of JSON. Serving from somewhere else avoids that path.
 
-   Deliberately not an open proxy: GET only, the four known Stalker loader scripts only, a valid
+   Deliberately not an open proxy: GET only, the known Stalker loader scripts only, a valid
    MAC required, and private/loopback/link-local/metadata targets refused. */
 'use strict';
 
-const ENDPOINTS = new Set(['portal.php', 'stalker_portal/server/load.php', 'server/load.php', 'c/portal.php']);
+const ENDPOINTS = new Set(['portal.php', 'stalker_portal/server/load.php', 'server/load.php', 'c/portal.php', 'stalker_portal/portal.php', 'magportal/portal.php', 'p/portal.php', 'k/portal.php']);
 const STB_UA = 'Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3';
 const MAC_RE = /^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$/;
 

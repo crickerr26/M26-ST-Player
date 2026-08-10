@@ -27,9 +27,9 @@ function rewriteLocation(location, requestUrl) {
 /* Stalker/MAG/Ministra portal proxy. Browsers can't send the MAC-address cookie or the MAG
    set-top-box User-Agent these portals require to respond, and most send no CORS headers at
    all — so Stalker requests are relayed here, where those headers are set server-side. This is
-   NOT an open "fetch any URL" proxy: only GET requests to one of a fixed set of known Stalker
+   NOT an open "fetch any URL" proxy: only GET requests to one of the known set of Stalker
    loader scripts, on a portal host the caller supplies, are forwarded. */
-const STALKER_ENDPOINTS = new Set(['portal.php', 'stalker_portal/server/load.php', 'server/load.php', 'c/portal.php']);
+const STALKER_ENDPOINTS = new Set(['portal.php', 'stalker_portal/server/load.php', 'server/load.php', 'c/portal.php', 'stalker_portal/portal.php', 'magportal/portal.php', 'p/portal.php', 'k/portal.php']);
 const STALKER_UA = 'Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3';
 
 async function handleStalkerProxy(request) {

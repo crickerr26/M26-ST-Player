@@ -8,7 +8,7 @@
    relay on an ordinary host (Render, Fly, a VPS) makes the request arrive from a normal datacenter
    IP instead, sidestepping the Cloudflare-to-Cloudflare path entirely.
 
-   Deliberately NOT an open proxy: only GET, only the fixed set of known Stalker loader scripts,
+   Deliberately NOT an open proxy: only GET, only the known set of Stalker loader scripts,
    only a syntactically valid MAC, and never to a private/loopback address. Same guards as the
    Worker version. Only the small JSON API calls belong here — video segments keep using whatever
    path the app already uses, so a free instance is not asked to push streams.
@@ -17,7 +17,7 @@
 'use strict';
 const http = require('node:http');
 
-const ENDPOINTS = new Set(['portal.php', 'stalker_portal/server/load.php', 'server/load.php', 'c/portal.php']);
+const ENDPOINTS = new Set(['portal.php', 'stalker_portal/server/load.php', 'server/load.php', 'c/portal.php', 'stalker_portal/portal.php', 'magportal/portal.php', 'p/portal.php', 'k/portal.php']);
 const STB_UA = 'Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3';
 const MAC_RE = /^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$/;
 const PORT = Number(process.env.PORT) || 8080;
