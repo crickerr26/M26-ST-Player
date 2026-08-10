@@ -5,3 +5,4 @@ _worker.js
 wrangler.jsonc
 .assetsignore
 relay
+render.yaml
