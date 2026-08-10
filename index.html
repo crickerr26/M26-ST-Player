@@ -903,7 +903,7 @@ function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.re
 /* Version scheme restarts here at 5.0 by owner request; the previous 7.x line is retired.
    Bump this on every release that changes anything a user can see — it is the single source for
    the splash screen, the login screen and the version badges, so nothing else needs editing. */
-const APP_VERSION='5.2';
+const APP_VERSION='5.3';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1350,6 +1350,32 @@ async function runPortalDiagnostics(write){
   const g1=genres&&genres.length?String(genres[0].id):'';
   if(g1)await step('itv/get_ordered_list genre='+g1+' p=1','itv','get_ordered_list',{genre:g1,sortby:'number',p:1});
 
+  /* v5.3: the decisive check for "channels list but nothing plays". A channel's stored cmd is
+     only a placeholder; the playable URL comes back from create_link. Resolve one for real and
+     print both, because everything downstream — the player, VLC, the relay — can only be as good
+     as this URL, and nothing else in the app shows it. */
+  emit('\n— stream link (create_link) —');
+  try{
+    const chans=await stalkerRequest('itv','get_all_channels').catch(()=>null);
+    const first=chans&&chans.js&&Array.isArray(chans.js.data)?chans.js.data[0]:null;
+    if(!first||!first.cmd){emit('• no channel with a cmd to test');}
+    else{
+      emit('• channel: '+(first.name||first.id)+'\n    stored cmd: '+String(first.cmd).slice(0,120));
+      const t0=Date.now();
+      const d=await stalkerRequest('itv','create_link',{cmd:first.cmd,forced_storage:'undefined',disable_ad:'0',download:'0'});
+      const raw=(d&&d.js&&(d.js.cmd||d.js.url))||'';
+      const clean=String(raw).replace(/^\S+\s+(?=https?:\/\/)/i,'').trim();
+      emit('    create_link ['+(Date.now()-t0)+'ms] raw: '+(String(raw).slice(0,160)||'(empty)'));
+      emit('    playable URL: '+(clean||'(none)'));
+      if(clean){
+        let host='';try{host=new URL(clean).hostname}catch{}
+        if(!host)emit('    ⚠ not a valid URL — nothing can play this');
+        else if(/^(localhost|127\.|0\.0\.0\.0|::1)/i.test(host))emit('    ⚠ internal address ('+host+') — only reachable on the provider\u2019s own server');
+        else emit('    host: '+host+'  (this is what the player and VLC are given)');
+      }
+    }
+  }catch(e){emit('• create_link FAILED: '+((e&&e.message)||e))}
+
   emit('\n— movies —');
   const vcats=await step('vod/get_categories','vod','get_categories');
   await step('vod/get_ordered_list category=* p=1','vod','get_ordered_list',{category:'*',sortby:'added',p:1});
@@ -1457,7 +1483,11 @@ async function loadTypeStalker(type){
     }else if(type==='series'){
       S.seriesCats=await stalkerFetchSeriesCategories();
       const items=await stalkerFetchSeriesList(S.seriesCats);
-      if(items===null){toast('Could not load Series — check your connection and try again.');}
+      /* v5.3: plenty of portals carry no series module at all, and this fires while the user is
+         browsing something else. A scary toast about a section they never asked for reads as "the
+         whole app is broken". Only say something when the portal DOES have series categories and
+         the item fetch still failed. */
+      if(items===null&&(S.seriesCats||[]).length){toast('Could not load Series — check your connection and try again.');}
       else{S.series=items.map(mapStalkerSeries);S.loadedSeries=true;}
     }else{
       /* Not every Stalker/Ministra portal carries a radio lineup — an empty result here (as
@@ -1465,7 +1495,7 @@ async function loadTypeStalker(type){
          none, so the Radio tab quietly reads "0 stations" instead of erroring. */
       S.radioCats=await stalkerFetchRadioGenres();
       const items=await stalkerFetchRadioList(S.radioCats);
-      if(items===null){toast('Could not load Radio — check your connection and try again.');}
+      if(items===null&&(S.radioCats||[]).length){toast('Could not load Radio — check your connection and try again.');}
       else{S.radio=items.map(mapStalkerRadio);S.loadedRadio=true;}
     }
   }catch(e){toast(mapStalkerError(e))}
@@ -1492,7 +1522,7 @@ async function resolveStalkerLink(x){
      giving up and surfacing a real error. */
   let d,lastErr;
   for(let attempt=0;attempt<4;attempt++){
-    try{d=await stalkerRequest(t,'create_link',{cmd});lastErr=null;break}
+    try{d=await stalkerRequest(t,'create_link',{cmd,forced_storage:'undefined',disable_ad:'0',download:'0'});lastErr=null;break}
     catch(e){
       lastErr=e;
       if(attempt===1)await stalkerHandshake().catch(()=>{});
@@ -2963,6 +2993,7 @@ async function tryPlans(plans,i){
   if(!plans[i]){if(await tryLiveAlternative())return;fail('This stream is unavailable. Try another channel version.');return}
   cleanup();
   const token=++S.seq,p=plans[i],live=isLiveLike(S.current),transcoded=/Transcoded/i.test(p.label);
+  S.lastTriedUrl=p.url;
   /* between attempts, give the origin a beat to release the previous slot */
   if(i>0&&live){$('netStatus').textContent='Switching path';await new Promise(r=>setTimeout(r,1500));if(token!==S.seq)return}
   $('netStatus').textContent='Loading '+p.label;$('miniMeta').textContent='Trying '+p.label;
@@ -3167,6 +3198,17 @@ async function checkAccountConflict(){
   }catch(e){return false}
 }
 function fail(msg){
+  /* v5.3: a bare "did not load" gives the user nothing to act on and gives me nothing to debug.
+     The host that was actually contacted is the single most useful fact here — it distinguishes a
+     bad create_link URL from a stream that is simply refusing us. */
+  try{
+    const u=S.lastTriedUrl||'';
+    if(u){
+      let shown=u;
+      try{const q=new URL(u);shown=/\/proxy\b/.test(q.pathname)&&q.searchParams.get('url')?('relay → '+new URL(q.searchParams.get('url')).host):q.host;}catch{}
+      msg=String(msg||'')+' (tried: '+String(shown).slice(0,80)+')';
+    }
+  }catch(e){}
   /* v39: if a LIVE stream died, check whether the account's one slot is now held by another
      device (our own connection is already torn down here) and, if so, explain it. */
   try{if(S.current&&isLiveLike(S.current)){setTimeout(function(){checkAccountConflict().then(function(c){if(c)showAccountConflict()})},1800);}}catch(e){}
