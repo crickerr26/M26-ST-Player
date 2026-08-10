@@ -744,6 +744,7 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
       <div class="field"><label>Password</label><div class="pwWrap"><input id="stalkerPass" type="password" autocomplete="current-password"><button type="button" class="pwToggle" id="stalkerPwToggle" aria-label="Show or hide password" tabindex="-1"></button></div></div>
       <div class="field"><label>Portal URL</label><input id="stalkerUrl" placeholder="http://sw4u.net" autocomplete="url"></div>
       <button class="pillbtn primary" id="loginStalkerBtn">Connect Stalker</button>
+      <button class="pillbtn" id="loginDiagBtn" type="button" style="margin-top:8px;width:100%">Portal diagnostics</button>
     </div>
     <div class="err" id="err"></div>
   </div>
@@ -1131,7 +1132,11 @@ async function stalkerRequest(type,action,extra={}){
       return data;
     }catch(e){lastErr=e}
   }
-  throw lastErr&&/^HTTP 40[13]$/.test(lastErr.message||'')?lastErr:Error('Could not reach the Stalker portal. Check the portal URL.');
+  /* v97: keep the real reason. Collapsing 404 / 502 upstream-unreachable / timeout / non-JSON
+     into one generic string made every portal failure look identical and undebuggable — the
+     underlying cause now rides along so the login screen can show what actually happened. */
+  if(lastErr&&/^HTTP 40[13]$/.test(lastErr.message||''))throw lastErr;
+  throw Object.assign(Error('Could not reach the Stalker portal. Check the portal URL.'),{detail:(lastErr&&lastErr.message)||'no response from any known portal path'});
 }
 async function stalkerHandshake(){
   const d=await stalkerRequest('stb','handshake',{token:''});
@@ -1241,10 +1246,35 @@ async function runPortalDiagnostics(write){
   };
 
   const st=S.stalker||{};
+  const portal=st.portal||normalize(($('stalkerUrl')&&$('stalkerUrl').value)||'');
+  const mac=String(st.mac||($('stalkerMac')&&$('stalkerMac').value)||'').trim().toUpperCase();
   lines.length=0;
-  emit('portal: '+(st.portal||'(none)')+'\nmac: '+(st.mac||'(none)')+'\nendpoint: '+(st.endpoint||'(not resolved)')+'\ntoken: '+(st.token?'present':'MISSING')+'\nuser: '+(st.user?'set':'(empty)')+'\n');
+  emit('portal: '+(portal||'(none)')+'\nmac: '+(mac||'(none)')+'\nproxy: '+(STALKER_PROXY||'(unavailable)')+'\nsession token: '+(st.token?'present':'none yet')+'\n');
+  if(!portal||!mac){emit('Enter a portal URL and MAC on the login screen first.');return lines.join('\n')}
 
-  emit('— session —');
+  /* Phase 1 — raw reachability, needs no session, so this still works when LOGIN itself is what's
+     failing. stalkerRequest() tries each known Stalker loader path and collapses every distinct
+     failure (404, 502 upstream unreachable, timeout, HTML instead of JSON) into one generic
+     "Could not reach the Stalker portal", which is unactionable. This prints each path's real
+     HTTP status and the first slice of its body so the actual cause is visible. */
+  emit('— endpoint probe (stb/handshake) —');
+  let liveEp='';
+  for(const ep of STALKER_EP_CANDIDATES){
+    const t0=Date.now();
+    try{
+      const qs=new URLSearchParams({portal,ep,mac,token:'',JsHttpRequest:'1-xml',type:'stb',action:'handshake'});
+      const r=await fetchWithTimeout(STALKER_PROXY+'?'+qs.toString(),15000);
+      const txt=await r.text();
+      let note='';
+      try{const j=JSON.parse(txt);const tk=j&&j.js&&j.js.token;note=tk?'  ← TOKEN OK':'  parsed, no token';if(tk&&!liveEp)liveEp=ep;}
+      catch{note='  not JSON'}
+      emit('• /'+ep+'  ['+(Date.now()-t0)+'ms]  HTTP '+r.status+note+'\n    '+String(txt||'(empty body)').replace(/\s+/g,' ').slice(0,180));
+    }catch(e){emit('• /'+ep+'  ['+(Date.now()-t0)+'ms]  REQUEST FAILED: '+((e&&e.message)||e))}
+  }
+  if(!liveEp&&!st.token){emit('\nNo path returned a token. The portal URL (or its port), or this MAC\'s registration, is the problem — not the catalog code.\n— done —');return lines.join('\n')}
+  if(!st.token){emit('\n/'+liveEp+' handshakes fine. Log in, then run this again for the catalog checks.\n— done —');return lines.join('\n')}
+
+  emit('\n— session —');
   await step('stb/get_profile','stb','get_profile',Object.assign({hd:'1',num_banks:'2',stb_type:'MAG250',image_version:'218'},st.user?{login:st.user}:{},st.pass?{password:st.pass}:{}));
   await step('stb/get_account_info','stb','get_account_info');
 
@@ -1442,6 +1472,7 @@ function mapStalkerError(e,mac){
   const m=String((e&&e.message)||e||'');
   if(code==='not_activated')return 'This device MAC is not activated. Give '+(mac||(S.stalker&&S.stalker.mac)||'')+' to your IPTV provider and ask them to register it.';
   if(/HTTP 401|HTTP 403/.test(m))return 'Login rejected. Check your username and password.';
+  if(e&&e.detail)return m+' ('+e.detail+') — tap Portal diagnostics for the full reply.';
   return m||'Could not create a Stalker session. Make sure this MAC is activated by your IPTV provider.';
 }
 /* ===== Saved login profiles — quick reconnect from the login screen ===== */
@@ -3246,6 +3277,7 @@ if($('homeExit'))$('homeExit').onclick=()=>{if($('home'))$('home').classList.add
 let _diagText='';
 function openDiag(){if($('diagSheet'))$('diagSheet').classList.add('show')}
 if($('homeDiag'))$('homeDiag').onclick=openDiag;
+if($('loginDiagBtn'))$('loginDiagBtn').onclick=openDiag;
 if($('diagClose'))$('diagClose').onclick=()=>$('diagSheet').classList.remove('show');
 if($('diagCancel'))$('diagCancel').onclick=()=>$('diagSheet').classList.remove('show');
 if($('diagSheet'))$('diagSheet').onclick=e=>{if(e.target.id==='diagSheet')$('diagSheet').classList.remove('show')};
