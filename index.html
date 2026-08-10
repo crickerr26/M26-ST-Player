@@ -903,7 +903,7 @@ function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.re
 /* Version scheme restarts here at 5.0 by owner request; the previous 7.x line is retired.
    Bump this on every release that changes anything a user can see — it is the single source for
    the splash screen, the login screen and the version badges, so nothing else needs editing. */
-const APP_VERSION='5.1';
+const APP_VERSION='5.2';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1122,7 +1122,7 @@ function commitStalkerMacField(){
   }
   return getOrCreateStalkerMac();
 }
-const STALKER_EP_CANDIDATES=['portal.php','stalker_portal/server/load.php','server/load.php','c/portal.php'];
+const STALKER_EP_CANDIDATES=['portal.php','stalker_portal/server/load.php','server/load.php','c/portal.php','stalker_portal/portal.php','magportal/portal.php','p/portal.php','k/portal.php'];
 /* v98: the portal relay is normally this same origin (see _worker.js), but that runs on Cloudflare
    — and these portals sit behind Cloudflare too, so portal calls arrive from Cloudflare's own
    network carrying a MAG set-top-box User-Agent, which can draw a bot challenge that answers with
@@ -1143,6 +1143,12 @@ function stalkerProxyBase(){
    JSON, which used to surface only as the catch-all "Invalid response". Name it, because the fix
    is on the portal's Cloudflare (allowlist the app / disable the challenge for the loader path),
    not in this code. */
+/* v5.2: Cloudflare is not the only thing that sits in front of a portal. ModSecurity/LiteSpeed —
+   the stack most IPTV panels are hosted on — answers with its own page ("Sorry for the
+   inconvenience. Please report this message...") and a 403 or 406, which is indistinguishable from
+   a credentials failure unless the body is read. Name it, so a firewall block never again gets
+   reported as a wrong password. */
+function looksLikeWafBlock(t){return /mod_?security|litespeed|Sorry for the inconvenience|Please report this message|Not Acceptable!/i.test(String(t||''))}
 function looksLikeCfBlock(t){return /cf-(ray|chl|browser-verification)|__cf_chl|Attention Required|Just a moment|Enable JavaScript and cookies|error code:\s*10\d\d|cloudflare/i.test(String(t||''))}
 /* v99: a refusal page is HTML, and the sentence that says WHY sits after the boilerplate title and
    heading. Showing the raw first N characters spent the whole budget on doctype and tags and cut
@@ -1178,12 +1184,13 @@ async function stalkerRequest(type,action,extra={}){
         let body='';try{body=await r.text()}catch{}
         lastErr=Error('HTTP '+r.status);
         if(looksLikeCfBlock(body))lastErr=Error('Blocked by the portal’s Cloudflare protection (HTTP '+r.status+')');
+        else if(looksLikeWafBlock(body))lastErr=Error('Blocked by a firewall in front of the portal (HTTP '+r.status+')');
         else if(body&&body.trim())lastErr.body=plainBody(body,240);
         continue;
       }
       const txt=await r.text();
       if(!txt||!txt.trim()){lastErr=Error('Empty response');continue}
-      let data;try{data=JSON.parse(txt)}catch{lastErr=Error(looksLikeCfBlock(txt)?'Blocked by the portal’s Cloudflare protection':'Invalid response (portal did not return JSON)');continue}
+      let data;try{data=JSON.parse(txt)}catch{lastErr=Error(looksLikeCfBlock(txt)?'Blocked by the portal’s Cloudflare protection':looksLikeWafBlock(txt)?'Blocked by a firewall in front of the portal':'Invalid response (portal did not return JSON)');continue}
       st.endpoint=ep;
       return data;
     }catch(e){lastErr=e}
@@ -1191,7 +1198,7 @@ async function stalkerRequest(type,action,extra={}){
   /* v97: keep the real reason. Collapsing 404 / 502 upstream-unreachable / timeout / non-JSON
      into one generic string made every portal failure look identical and undebuggable — the
      underlying cause now rides along so the login screen can show what actually happened. */
-  if(lastErr&&/Cloudflare/i.test(lastErr.message||''))throw lastErr;
+  if(lastErr&&/Cloudflare|firewall/i.test(lastErr.message||''))throw lastErr;
   if(lastErr&&/^HTTP 40[13]$/.test(lastErr.message||''))throw Object.assign(lastErr,{detail:lastErr.body||''});
   throw Object.assign(Error('Could not reach the Stalker portal. Check the portal URL.'),{detail:(lastErr&&lastErr.message)||'no response from any known portal path'});
 }
@@ -1543,6 +1550,7 @@ function mapStalkerError(e,mac){
      genuinely refusing these credentials; 403 is just as often a firewall/WAF in front of the
      portal, which has nothing to do with the password — saying "check your username and
      password" for a 403 sent debugging in the wrong direction. */
+  if(/firewall/i.test(m))return 'A firewall in front of this portal is refusing the app — not a wrong password. This is set by whoever runs the portal. Try the portal address your provider lists for MAG / Ministra / Smart STB devices, or ask them to allow this app.';
   if(/HTTP 401/.test(m))return 'Login rejected — the portal did not accept this username/password for this MAC.';
   if(/HTTP 403/.test(m))return 'The portal refused the request (403). That is not necessarily your password — a firewall in front of the portal also returns 403. Check the MAC is registered on THIS portal URL, then tap Portal diagnostics for the exact reply.'+((e&&e.detail)?' ['+e.detail+']':'');
   if(e&&e.detail)return m+' ('+e.detail+') — tap Portal diagnostics for the full reply.';
