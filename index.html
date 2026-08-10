@@ -706,7 +706,7 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
         <span class="hc-arrow">→</span>
       </button>
     </div>
-    <button class="home-exit" id="homeExit">Log out</button>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center"><button class="home-exit" id="homeDiag">Portal diagnostics</button><button class="home-exit" id="homeExit">Log out</button></div>
   </div>
 </div>
 <div class="catpage hidden" id="catpage">
@@ -749,6 +749,7 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
   </div>
 </div>
 <div class="episodeSheet" id="episodeSheet"><div class="episodePanel"><div class="episodeHead"><h3 id="episodeTitle">Episodes</h3><button class="iconbtn" id="episodeClose">×</button></div><div class="episodeList" id="episodeList"></div></div></div>
+<div class="episodeSheet" id="diagSheet"><div class="episodePanel nativePanel"><div class="episodeHead"><h3>Portal diagnostics</h3><button class="iconbtn" id="diagClose">×</button></div><p class="nativeText">Asks your portal each question the app needs answered and shows exactly what it replies. Send this to your developer to pin down why a section is empty.</p><pre id="diagOut" style="min-height:0;overflow:auto;max-height:52vh;white-space:pre-wrap;word-break:break-word;font-size:11px;line-height:1.45;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:10px;margin:8px 0;color:var(--soft)">Tap Run to start.</pre><div class="nativeActions"><button class="pillbtn primary" id="diagRun">Run</button><button class="pillbtn" id="diagCopy">Copy result</button><button class="pillbtn" id="diagCancel">Close</button></div></div></div>
 <div class="infoSheet" id="infoSheet">
   <div class="infoPanel">
     <button class="infoClose" id="infoClose" aria-label="Close">&times;</button>
@@ -1201,6 +1202,77 @@ async function stalkerPaged(type,action,extraParams,maxPages=1000){
   await Promise.all(Array.from({length:Math.min(CONCURRENCY,totalPages-1)},worker));
   return out;
 }
+/* v96: portal diagnostics. Two rounds of "the portal returns nothing and we can't see why" made
+   it clear that guessing at which Stalker dialect this provider speaks is the wrong loop — the
+   portal is the only thing that knows. This asks it every question the catalog code depends on
+   and prints the RAW reply (shape, count, first row), so the actual failing call is visible
+   instead of inferred. Read-only: nothing here writes state or changes what the app then does. */
+async function runPortalDiagnostics(write){
+  const lines=[];
+  const emit=t=>{lines.push(t);write(lines.join('\n'))};
+  const shape=v=>{
+    if(v===null||v===undefined)return String(v);
+    if(Array.isArray(v))return 'array('+v.length+')';
+    if(typeof v==='object')return 'object{'+Object.keys(v).slice(0,8).join(',')+'}';
+    return typeof v+'('+String(v).slice(0,40)+')';
+  };
+  const rows=js=>Array.isArray(js&&js.data)?js.data:(Array.isArray(js)?js:null);
+  const step=async(label,type,action,extra)=>{
+    const t0=Date.now();
+    try{
+      const d=await stalkerRequest(type,action,extra||{});
+      const js=d&&d.js;
+      const arr=rows(js);
+      let line='• '+label+'  ['+(Date.now()-t0)+'ms]\n    js: '+shape(js);
+      if(arr){
+        line+='\n    rows: '+arr.length;
+        if(js&&js.total_items!==undefined)line+='   total_items: '+js.total_items;
+        if(js&&js.max_page_items!==undefined)line+='   per_page: '+js.max_page_items;
+        if(arr.length){
+          const f=arr[0];
+          line+='\n    first: '+JSON.stringify({id:f.id,name:f.name||f.title,cmd:f.cmd?String(f.cmd).slice(0,44):undefined}).slice(0,220);
+        }
+      }else if(js!==undefined){
+        line+='\n    raw: '+JSON.stringify(js).slice(0,220);
+      }
+      emit(line);
+      return arr;
+    }catch(e){emit('• '+label+'  ['+(Date.now()-t0)+'ms]\n    FAILED: '+((e&&e.message)||e));return null}
+  };
+
+  const st=S.stalker||{};
+  lines.length=0;
+  emit('portal: '+(st.portal||'(none)')+'\nmac: '+(st.mac||'(none)')+'\nendpoint: '+(st.endpoint||'(not resolved)')+'\ntoken: '+(st.token?'present':'MISSING')+'\nuser: '+(st.user?'set':'(empty)')+'\n');
+
+  emit('— session —');
+  await step('stb/get_profile','stb','get_profile',Object.assign({hd:'1',num_banks:'2',stb_type:'MAG250',image_version:'218'},st.user?{login:st.user}:{},st.pass?{password:st.pass}:{}));
+  await step('stb/get_account_info','stb','get_account_info');
+
+  emit('\n— live tv —');
+  const genres=await step('itv/get_genres','itv','get_genres');
+  await step('itv/get_all_channels','itv','get_all_channels');
+  await step('itv/get_ordered_list genre=* p=1','itv','get_ordered_list',{genre:'*',sortby:'number',p:1});
+  await step('itv/get_ordered_list genre=* fav=0 p=1','itv','get_ordered_list',{genre:'*',sortby:'number',fav:'0',force_ch_link_check:'',p:1});
+  const g1=genres&&genres.length?String(genres[0].id):'';
+  if(g1)await step('itv/get_ordered_list genre='+g1+' p=1','itv','get_ordered_list',{genre:g1,sortby:'number',p:1});
+
+  emit('\n— movies —');
+  const vcats=await step('vod/get_categories','vod','get_categories');
+  await step('vod/get_ordered_list category=* p=1','vod','get_ordered_list',{category:'*',sortby:'added',p:1});
+  const v1=vcats&&vcats.length?String(vcats[0].id):'';
+  if(v1)await step('vod/get_ordered_list category='+v1+' p=1','vod','get_ordered_list',{category:v1,sortby:'added',p:1});
+
+  emit('\n— series —');
+  await step('series/get_categories','series','get_categories');
+  await step('series/get_ordered_list category=* p=1','series','get_ordered_list',{category:'*',sortby:'added',p:1});
+
+  emit('\n— radio —');
+  await step('radio/get_genres','radio','get_genres');
+  await step('radio/get_ordered_list genre=* p=1','radio','get_ordered_list',{genre:'*',sortby:'number',p:1});
+
+  emit('\n— done —');
+  return lines.join('\n');
+}
 async function stalkerFetchLiveGenres(){
   const d=await stalkerRequest('itv','get_genres').catch(()=>null);
   const arr=(d&&d.js)||[];
@@ -1216,14 +1288,40 @@ async function stalkerFetchAllOrByCategory(type,filterKey,sortby,cats){
   const all=await stalkerPaged(type,'get_ordered_list',{[filterKey]:'*',sortby});
   if(all&&all.length)return all;
   if(!Array.isArray(cats)||!cats.length)return all;
+  /* v96: BOUNDED. The first cut of this fallback walked every category unconditionally — on a
+     portal with 50+ categories that's a burst big enough to trip the same WAF the pagination
+     code below already tiptoes around, and once tripped it rejected the NEXT catalog's requests
+     too (observed live: Live TV's genres stopped loading entirely and Series failed outright
+     right after this ran). Give up after a few consecutive empties when nothing has come back
+     yet, and space the requests out, so a portal that simply has no data here costs a handful
+     of polite requests instead of a block that takes the whole session down with it. */
   const merged=new Map();
+  let consecutiveEmpty=0;
   for(const c of cats){
     const items=await stalkerPaged(type,'get_ordered_list',{[filterKey]:c.category_id,sortby}).catch(()=>null);
-    if(Array.isArray(items))for(const it of items){if(it&&it._srcCat===undefined)it._srcCat=c.category_id;merged.set(String(it.id),it)}
+    if(Array.isArray(items)&&items.length){
+      consecutiveEmpty=0;
+      for(const it of items){if(it&&it._srcCat===undefined)it._srcCat=c.category_id;merged.set(String(it.id),it)}
+    }else{
+      consecutiveEmpty++;
+      if(consecutiveEmpty>=4&&!merged.size)break;   /* portal isn't serving per-category either */
+    }
+    await new Promise(r=>setTimeout(r,150));
   }
   return merged.size?Array.from(merged.values()):all;
 }
-async function stalkerFetchChannels(cats){return stalkerFetchAllOrByCategory('itv','genre','number',cats)}
+async function stalkerFetchChannels(cats){
+  /* v96: get_all_channels is the canonical Stalker/Ministra call for "the entire channel list"
+     (it's what MAG boxes themselves use) and returns every channel in one response, with no
+     pagination and no wildcard-genre assumption. This code never tried it — it went straight to
+     get_ordered_list with genre="*", which this portal answers with an empty page. Try the
+     canonical call first and only fall back to the paginated/per-genre paths if it's unsupported. */
+  const d=await stalkerRequest('itv','get_all_channels').catch(()=>null);
+  const js=d&&d.js;
+  const arr=js&&Array.isArray(js.data)?js.data:(Array.isArray(js)?js:null);
+  if(arr&&arr.length)return arr;
+  return stalkerFetchAllOrByCategory('itv','genre','number',cats);
+}
 async function stalkerFetchVodCategories(){
   const d=await stalkerRequest('vod','get_categories').catch(()=>null);
   const arr=(d&&d.js)||[];
@@ -3144,6 +3242,22 @@ if($('catList'))$('catList').addEventListener('click',e=>{
   const b=e.target.closest('.cp-cat');if(!b)return;openCategory(b.dataset.cat);
 });
 if($('homeExit'))$('homeExit').onclick=()=>{if($('home'))$('home').classList.add('hidden');cleanup();S.current=null;hideNowPlaying();try{store.removeItem(STALKER_KEY)}catch(e){}$('login').classList.remove('hidden')};
+/* v96: portal diagnostics sheet — see runPortalDiagnostics(). */
+let _diagText='';
+function openDiag(){if($('diagSheet'))$('diagSheet').classList.add('show')}
+if($('homeDiag'))$('homeDiag').onclick=openDiag;
+if($('diagClose'))$('diagClose').onclick=()=>$('diagSheet').classList.remove('show');
+if($('diagCancel'))$('diagCancel').onclick=()=>$('diagSheet').classList.remove('show');
+if($('diagSheet'))$('diagSheet').onclick=e=>{if(e.target.id==='diagSheet')$('diagSheet').classList.remove('show')};
+if($('diagCopy'))$('diagCopy').onclick=()=>{if(!_diagText){toast('Run the diagnostics first');return}copyToClipboard(_diagText,'Diagnostics copied')};
+if($('diagRun'))$('diagRun').onclick=async()=>{
+  const out=$('diagOut'),btn=$('diagRun');if(!out)return;
+  if(S.provider!=='stalker'){out.textContent='Diagnostics cover Stalker/Ministra portals only.';return}
+  btn.disabled=true;out.textContent='Running…';
+  const write=t=>{_diagText=t;out.textContent=t};
+  try{await runPortalDiagnostics(write)}catch(e){out.textContent+='\n\nDIAGNOSTICS CRASHED: '+((e&&e.message)||e)}
+  finally{btn.disabled=false}
+};
 if($('npExpand'))$('npExpand').onclick=expandNowPlaying;
 if($('npClose'))$('npClose').onclick=stopNowPlaying;
 if($('nowPlayingBar'))$('nowPlayingBar').addEventListener('dblclick',expandNowPlaying);
