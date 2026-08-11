@@ -292,7 +292,7 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
   .qp{height:30px;min-width:30px;padding:0 6px;font-size:10px}
 }
 /* ===================== v89: Home hub (post-login landing) ===================== */
-.home{position:fixed;inset:0;z-index:15;display:grid;place-items:center;overflow:hidden;padding:24px max(18px,env(safe-area-inset-left)) calc(24px + env(safe-area-inset-bottom)) max(18px,env(safe-area-inset-right));background:radial-gradient(circle at 15% 12%,rgba(56,189,248,.16),transparent 42%),radial-gradient(circle at 85% 18%,rgba(168,85,247,.16),transparent 38%),radial-gradient(circle at 50% 108%,rgba(45,212,191,.16),transparent 46%),linear-gradient(160deg,#0a1220,#0d1a2e 55%,#0a1220)}
+.home{position:fixed;inset:0;z-index:15;display:flex;justify-content:center;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:24px max(18px,env(safe-area-inset-left)) calc(24px + env(safe-area-inset-bottom)) max(18px,env(safe-area-inset-right));background:radial-gradient(circle at 15% 12%,rgba(56,189,248,.16),transparent 42%),radial-gradient(circle at 85% 18%,rgba(168,85,247,.16),transparent 38%),radial-gradient(circle at 50% 108%,rgba(45,212,191,.16),transparent 46%),linear-gradient(160deg,#0a1220,#0d1a2e 55%,#0a1220)}
 .home.hidden{display:none}
 .home-bg{position:absolute;inset:0;overflow:hidden;pointer-events:none}
 .home-bg span{position:absolute;border-radius:50%;filter:blur(40px);opacity:.5;animation:homeFloat 15s ease-in-out infinite}
@@ -301,7 +301,7 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
 .home-bg span:nth-child(3){width:280px;height:280px;left:18%;bottom:-70px;background:radial-gradient(circle,#2dd4bf,transparent 70%);animation-delay:-8s}
 .home-bg span:nth-child(4){width:210px;height:210px;right:12%;bottom:4%;background:radial-gradient(circle,#f59e0b,transparent 70%);animation-delay:-2s}
 @keyframes homeFloat{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(26px,-32px) scale(1.08)}66%{transform:translate(-22px,22px) scale(.94)}}
-.home-inner{position:relative;z-index:1;width:min(780px,100%);display:flex;flex-direction:column;align-items:center;gap:26px}
+.home-inner{position:relative;z-index:1;margin:auto;width:min(780px,100%);display:flex;flex-direction:column;align-items:center;gap:26px}
 .home-head{text-align:center;animation:homeRise .7s cubic-bezier(.2,.8,.2,1) both}
 .home-brand{width:68px;height:68px;margin:0 auto 14px;border-radius:20px;background:linear-gradient(135deg,rgba(56,189,248,.2),rgba(45,212,191,.14));display:grid;place-items:center;box-shadow:0 12px 40px rgba(56,189,248,.28),inset 0 0 0 1px rgba(255,255,255,.08);animation:homeBrandPulse 3s ease-in-out infinite}
 .home-brand img{width:72%;height:72%;object-fit:contain}
@@ -346,7 +346,7 @@ body.light .home-head p{color:#5a6f90}
 .catpage::before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle at 12% 8%,rgba(var(--cp-rgb),.12),transparent 46%),radial-gradient(circle at 88% 96%,rgba(var(--cp-rgb),.09),transparent 48%)}
 .catpage .home-bg span{filter:grayscale(1) blur(46px);opacity:.14}
 .catpage.theme-live,.catpage.theme-vod,.catpage.theme-series,.catpage.theme-radio{--cp-a:#aeb6c4;--cp-b:#5c6472;--cp-rgb:160,168,182}
-.cp-inner{position:relative;z-index:1;width:min(820px,100%);margin:0 auto;height:100%;display:flex;flex-direction:column;gap:14px}
+.cp-sect{grid-column:1/-1;margin:14px 2px 2px;font-size:12px;font-weight:900;letter-spacing:.6px;text-transform:uppercase;color:#8fa5c6}.cp-hit .cp-cbadge{overflow:hidden;padding:0}.cp-hit .cp-cbadge img{width:100%;height:100%;object-fit:cover;border-radius:inherit}.cp-hit .cp-cn small{text-transform:uppercase;letter-spacing:.4px}.cp-inner{position:relative;z-index:1;width:min(820px,100%);margin:0 auto;height:100%;display:flex;flex-direction:column;gap:14px}
 .cp-head{display:flex;align-items:center;gap:12px;animation:homeRise .5s cubic-bezier(.2,.8,.2,1) both}
 .cp-back{flex-shrink:0;width:46px;height:46px;border-radius:15px;display:grid;place-items:center;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#dce8fb;transition:transform .15s ease,background .15s ease}
 .cp-back svg{width:22px;height:22px}
@@ -721,7 +721,7 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
     </div>
     <div class="cp-searchwrap">
       <svg class="cp-searchic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-      <input id="catSearch" placeholder="Search categories…" autocomplete="off">
+      <input id="catSearch" placeholder="Search categories and titles…" autocomplete="off">
     </div>
     <div class="cp-list" id="catList"></div>
   </div>
@@ -900,7 +900,7 @@ function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.re
 /* Version scheme restarts here at 5.0 by owner request; the previous 7.x line is retired.
    Bump this on every release that changes anything a user can see — it is the single source for
    the splash screen, the login screen and the version badges, so nothing else needs editing. */
-const APP_VERSION='5.6';
+const APP_VERSION='5.7';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1762,8 +1762,31 @@ function renderCatPage(){
     html+=`<button class="cp-cat ${String(S.cat)===String(c.category_id)?'active':''}" data-cat="${esc(c.category_id)}"><span class="cp-cbadge">${initial}</span><span class="cp-cn"><b>${esc(name)}</b><small>${cnt.toLocaleString()} ${esc(meta.unit)}</small></span><span class="cp-count">${cnt.toLocaleString()}</span><span class="cp-star ${isF?'on':''}" data-favcat="${esc(c.category_id)}" role="button" aria-label="Favorite category">★</span><span class="cp-chev">›</span></button>`;
     shown++;
   }
+  /* v5.7: a search here used to match category NAMES only, so looking for a title on the Movies
+     page answered "no categories match" while the film sat in the catalog. Search the items of
+     this type as well and list the hits underneath, so the obvious thing — type a name, get the
+     thing — works from the category page too. */
+  let hits=[];
+  if(q){
+    const seen=new Set();
+    for(const it of list()){
+      if(!nameOf(it).toLowerCase().includes(q))continue;
+      const k=keyOf(it);
+      if(seen.has(k))continue;
+      seen.add(k);hits.push(it);
+      if(hits.length>=60)break;
+    }
+  }
+  if(hits.length){
+    html+=`<div class="cp-sect">${esc(meta.label)} matching “${esc(q)}”${hits.length>=60?' (first 60)':''}</div>`;
+    for(const it of hits){
+      const lg=logoOf(it);
+      html+=`<button class="cp-cat cp-hit" data-item="${esc(keyOf(it))}"><span class="cp-cbadge">${lg?`<img loading="lazy" src="${esc(lg)}" onerror="this.remove()">`:esc((nameOf(it).trim()[0]||'#').toUpperCase())}</span><span class="cp-cn"><b>${esc(nameOf(it))}</b><small>${esc(typeOf(it).toUpperCase())}</small></span><span class="cp-chev">›</span></button>`;
+    }
+  }
   if(!html){
-    html=loading?`<div style="grid-column:1/-1;color:#8fa5c6;padding:26px;text-align:center;font-weight:700">Loading ${esc(meta.label)}…</div>`:`<div style="grid-column:1/-1;color:#8fa5c6;padding:26px;text-align:center;font-weight:700">${q?'No categories match “'+esc(q)+'”':'No categories yet.'}</div>`;
+    const stillLoading=loading?'':' Still loading — try again in a moment if it is not here yet.';
+    html=loading?`<div style="grid-column:1/-1;color:#8fa5c6;padding:26px;text-align:center;font-weight:700">Loading ${esc(meta.label)}…</div>`:`<div style="grid-column:1/-1;color:#8fa5c6;padding:26px;text-align:center;font-weight:700">${q?'Nothing matches “'+esc(q)+'”.'+stillLoading:'No categories yet.'}</div>`;
   }
   list_.innerHTML=html;
 }
@@ -3513,6 +3536,9 @@ if($('catBack'))$('catBack').onclick=()=>showHome();
 })();
 if($('catSearch'))$('catSearch').oninput=e=>{S.catQ=e.target.value;renderCatPage()};
 if($('catList'))$('catList').addEventListener('click',e=>{
+  const hit=e.target.closest('[data-item]');
+  if(hit){e.stopPropagation();const x=findByKey(hit.dataset.item);if(x){if($('catpage'))$('catpage').classList.add('hidden');playItem(x);}return}
+
   const st=e.target.closest('[data-favcat]');
   if(st){e.stopPropagation();const fk=catFavKey(st.dataset.favcat);S.favCats.has(fk)?S.favCats.delete(fk):S.favCats.add(fk);saveFavCats();renderCatPage();return}
   const b=e.target.closest('.cp-cat');if(!b)return;openCategory(b.dataset.cat);
