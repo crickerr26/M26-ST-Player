@@ -12,6 +12,9 @@ services:
       DOMAIN: "${DOMAIN:?set DOMAIN in vps/.env}"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # the repo itself, so Caddy serves the player from this box too; read-only, and the
+      # Caddyfile refuses everything in it that is not part of the player
+      - ../:/srv:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on: [relay, transcoder]

@@ -1,14 +1,28 @@
-# Automatic HTTPS via Let's Encrypt. Requires DOMAIN to have an A record pointing at this box.
+# Automatic HTTPS via Let's Encrypt. DOMAIN must have an A record pointing at this box.
+#
+# This serves the PLAYER ITSELF as well as the services, so the app, the portal API and the video
+# all come from one origin. That is the point of the box: a Stalker portal issues a stream link to
+# whichever address asked for it, so the request that creates the link and the request that plays
+# it have to come from the same place — which is impossible when the app is on one host and the
+# relay on another.
 {$DOMAIN} {
 	encode zstd gzip
 
-	# Portal API — what the app's "Portal relay URL" points at.
+	# The repo is bind-mounted to serve the player, so everything in it that is not the player is
+	# refused explicitly. vps/.env holds the transcoder token and is NOT tracked by git, so it
+	# exists only here — it must never be reachable.
+	@private path /.git /.git/* /.env /.env* /vps /vps/* /relay /relay/* /api /api/* /_worker.js /wrangler.jsonc /render.yaml /vercel.json /.assetsignore /.vercelignore /package.json
+	handle @private {
+		respond "Not found" 404
+	}
+
+	# Portal API.
 	handle /stalker-proxy* {
 		reverse_proxy relay:8080
 	}
 
-	# Stream relay. Long-lived: a live channel holds this open for hours, so the
-	# usual proxy read timeout has to be disabled or playback dies mid-programme.
+	# Stream relay. Long-lived: a live channel holds this open for hours, so the usual proxy read
+	# timeout has to be disabled or playback dies mid-programme.
 	handle /proxy* {
 		reverse_proxy relay:8080 {
 			flush_interval -1
@@ -19,7 +33,7 @@
 		}
 	}
 
-	# Transcoder — the app's "Transcoder server URL" is https://DOMAIN/transcoder
+	# Transcoder, for formats a browser cannot decode.
 	handle /transcoder/* {
 		uri strip_prefix /transcoder
 		reverse_proxy transcoder:8080 {
@@ -34,7 +48,9 @@
 		reverse_proxy relay:8080
 	}
 
+	# The player.
 	handle {
-		respond "M26 services" 200
+		root * /srv
+		file_server
 	}
 }

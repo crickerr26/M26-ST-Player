@@ -7,7 +7,12 @@ behind [Caddy](https://caddyserver.com), which obtains and renews HTTPS certific
 | --- | --- |
 | `relay` | Portal API (`/stalker-proxy`) **and** the stream relay (`/proxy`) |
 | `transcoder` | MKV/HEVC transcoding, built from the `smarter-iptv` repo |
-| `caddy` | HTTPS termination and routing |
+| `caddy` | HTTPS, routing, **and serving the player itself** |
+
+Caddy serves the app from this box too, so the player, the portal API and the video all share one
+origin. That is the main reason to run it: a Stalker portal issues a stream link to whichever
+address asked for it, so the request that creates the link and the request that plays it have to
+come from the same place. Split across Vercel and a Worker they never can.
 
 ## Why a VPS
 
@@ -25,16 +30,25 @@ A €4/month box with ~20 TB of traffic sidesteps all three at once, and nothing
 ## Requirements
 
 - A fresh Ubuntu or Debian VPS (Hetzner CX22 or similar; 2 vCPU / 4 GB is ample).
-- **A domain or subdomain with an A record pointing at the server's IP.** This is not optional: the
-  app is served over HTTPS, so browsers refuse to call a plain-HTTP address, and a certificate
-  cannot be issued for a bare IP. A free subdomain (DuckDNS and similar) works fine.
+- **A domain or subdomain pointing at the server.** Not optional: the player is served over HTTPS,
+  a browser will not let an HTTPS page pull video over HTTP, and no certificate can be issued for a
+  bare IP.
+  **No domain?** Register a free one at [duckdns.org](https://www.duckdns.org), and pass its token
+  as a second argument — the installer points the record at this machine and keeps it pointed
+  (VPS addresses change).
 
 ## Install
 
 ```bash
 ssh root@YOUR_SERVER_IP
+
+# with your own domain
 curl -fsSL https://raw.githubusercontent.com/crickerr26/M26-ST-Player/main/vps/install.sh \
   | bash -s -- stream.example.com
+
+# or with a free DuckDNS name
+curl -fsSL https://raw.githubusercontent.com/crickerr26/M26-ST-Player/main/vps/install.sh \
+  | bash -s -- yourname.duckdns.org YOUR_DUCKDNS_TOKEN
 ```
 
 It installs Docker, clones this repo to `/opt/m26`, generates `vps/.env`, opens ports 80/443 if
@@ -48,16 +62,16 @@ curl https://stream.example.com/health
 # {"ok":true,"service":"m26-stalker-relay","routes":["/stalker-proxy","/proxy"]}
 ```
 
-## Point the app at it
+## Using it
 
-In the app, under **Stream tools**:
+Open **`https://your-domain`** and use that instead of the Vercel or workers.dev address.
 
-| Setting | Value |
-| --- | --- |
-| Portal relay URL | `https://stream.example.com` |
-| Transcoder server URL | `https://stream.example.com/transcoder` |
+**There is nothing to configure.** The app finds the portal API and the stream relay on its own
+origin, which is exactly what makes the link work: both requests leave from this machine. Leave
+**Portal relay URL** empty.
 
-Then reconnect. Portal API, streams and transcoding all now come from your own box.
+The only optional setting is **Transcoder server URL** → `https://your-domain/transcoder`, for
+formats a browser cannot decode (MKV, HEVC). Everything else needs no setup.
 
 ## Operating it
 
