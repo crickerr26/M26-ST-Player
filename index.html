@@ -876,7 +876,7 @@ function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.re
 /* Version scheme restarts here at 5.0 by owner request; the previous 7.x line is retired.
    Bump this on every release that changes anything a user can see — it is the single source for
    the splash screen, the login screen and the version badges, so nothing else needs editing. */
-const APP_VERSION='5.9';
+const APP_VERSION='6.0';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -928,7 +928,7 @@ const ICONS={
   sub:'<svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><line x1="7" y1="11" x2="11" y2="11"/><line x1="14" y1="11" x2="17" y2="11"/><line x1="7" y1="15" x2="13" y2="15"/><line x1="16" y1="15" x2="17" y2="15"/></svg>',
   download:'<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M5 21h14"/></svg>'
 };
-const S={provider:'stalker',stalker:{portal:'',mac:'',user:'',pass:'',token:'',endpoint:''},url:'',user:'',pass:'',tab:'live',cat:'',q:'',liveCats:[],live:[],vodCats:[],vod:[],seriesCats:[],series:[],radioCats:[],radio:[],current:null,hls:null,ts:null,seq:0,favs:new Set(),favCats:new Set(),orders:{live:[],vod:[],series:[],radio:[]},recent:[],busy:false,playerModes:{live:'auto',vod:'auto',series:'auto',radio:'auto'},extLaunch:null,lastStreamStopAt:0,lastExtLaunchAt:0,resume:{},relayRoutes:[],catQ:'',catScroll:0,catScrollTab:'',viewModes:{live:'list',vod:'grid',series:'grid',radio:'list'},transFast:false};
+const S={provider:'stalker',stalker:{portal:'',mac:'',user:'',pass:'',token:'',endpoint:''},url:'',user:'',pass:'',tab:'live',cat:'',q:'',liveCats:[],live:[],vodCats:[],vod:[],seriesCats:[],series:[],radioCats:[],radio:[],current:null,hls:null,ts:null,seq:0,favs:new Set(),favCats:new Set(),orders:{live:[],vod:[],series:[],radio:[]},recent:[],busy:false,playerModes:{live:'auto',vod:'auto',series:'auto',radio:'auto'},extLaunch:null,lastStreamStopAt:0,lastExtLaunchAt:0,resume:{},relayRoutes:[],catLoaded:{},catQ:'',catScroll:0,catScrollTab:'',viewModes:{live:'list',vod:'grid',series:'grid',radio:'list'},transFast:false};
 function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('show'),2200)}
 /* v95: every "Copy link" button called navigator.clipboard.writeText() without awaiting or
    catching its promise — writeText() can reject (permission denied, document not focused, no
@@ -1420,8 +1420,8 @@ async function stalkerFetchLiveGenres(){
    category showed 0 items despite the category list loading correctly. If the single wildcard
    sweep comes back empty but categories exist, fall back to fetching each real category id
    individually and merging (dedup by item id). */
-async function stalkerFetchAllOrByCategory(type,filterKey,sortby,cats){
-  const all=await stalkerPaged(type,'get_ordered_list',{[filterKey]:'*',sortby});
+async function stalkerFetchAllOrByCategory(type,filterKey,sortby,cats,maxPages){
+  const all=await stalkerPaged(type,'get_ordered_list',{[filterKey]:'*',sortby},maxPages||1000);
   if(all&&all.length)return all;
   if(!Array.isArray(cats)||!cats.length)return all;
   /* v96: BOUNDED. The first cut of this fallback walked every category unconditionally — on a
@@ -1434,7 +1434,7 @@ async function stalkerFetchAllOrByCategory(type,filterKey,sortby,cats){
   const merged=new Map();
   let consecutiveEmpty=0;
   for(const c of cats){
-    const items=await stalkerPaged(type,'get_ordered_list',{[filterKey]:c.category_id,sortby}).catch(()=>null);
+    const items=await stalkerPaged(type,'get_ordered_list',{[filterKey]:c.category_id,sortby},maxPages||1000).catch(()=>null);
     if(Array.isArray(items)&&items.length){
       consecutiveEmpty=0;
       for(const it of items){if(it&&it._srcCat===undefined)it._srcCat=c.category_id;merged.set(String(it.id),it)}
@@ -1463,13 +1463,20 @@ async function stalkerFetchVodCategories(){
   const arr=(d&&d.js)||[];
   return (Array.isArray(arr)?arr:[]).map(c=>({category_id:String(c.id),category_name:c.title||c.name||'Other'}));
 }
-async function stalkerFetchVodList(cats){return stalkerFetchAllOrByCategory('vod','category','added',cats)}
+/* v6.0: a VOD library of 103,349 titles is 7,383 pages at this portal's fixed 14 per page — about
+   eighty minutes of requests before anything appears, which is why Movies looked like it never
+   loaded. Live escapes this because get_all_channels returns the whole lineup in one reply; VOD
+   and series have no such call, so the up-front sweep is capped at a first slice and the rest is
+   fetched per category, when a category is actually opened. */
+const STALKER_FIRST_PAGES=20;   /* ~280 titles: enough to fill the tab immediately */
+const STALKER_CAT_PAGES=60;     /* ~840 titles per category, fetched on demand */
+async function stalkerFetchVodList(cats){return stalkerFetchAllOrByCategory('vod','category','added',cats,STALKER_FIRST_PAGES)}
 async function stalkerFetchSeriesCategories(){
   const d=await stalkerRequest('series','get_categories').catch(()=>null);
   const arr=(d&&d.js)||[];
   return (Array.isArray(arr)?arr:[]).map(c=>({category_id:String(c.id),category_name:c.title||c.name||'Other'}));
 }
-async function stalkerFetchSeriesList(cats){return stalkerFetchAllOrByCategory('series','category','added',cats)}
+async function stalkerFetchSeriesList(cats){return stalkerFetchAllOrByCategory('series','category','added',cats,STALKER_FIRST_PAGES)}
 async function stalkerFetchRadioGenres(){
   const d=await stalkerRequest('radio','get_genres').catch(()=>null);
   const arr=(d&&d.js)||[];
@@ -1768,8 +1775,38 @@ function renderCatPage(){
 }
 function goCategoryDirect(tab){S.tab=tab;S.cat='';renderAll();ensureTypeLoaded(tab);if($('home'))$('home').classList.add('hidden');if(tab==='vod'||tab==='series'){try{warmTranscoder()}catch(e){}}}
 function goCategory(tab){showCategories(tab);}
+/* v6.0: with the up-front sweep capped, opening a category is what pulls that category's titles.
+   Runs once per category, reuses the type's existing loading flag so the grid shows its normal
+   "Loading…" state, and merges by key so nothing already present is duplicated. */
+const STALKER_CAT_API={live:['itv','genre','number',x=>mapStalkerLive(x)],vod:['vod','category','added',x=>mapStalkerVod(x)],series:['series','category','added',x=>mapStalkerSeries(x)],radio:['radio','genre','number',x=>mapStalkerRadio(x)]};
+async function ensureCategoryLoaded(type,catId){
+  if(S.provider!=='stalker')return;
+  const id=String(catId||'');
+  if(!id||id==='__fav'||id==='__recent')return;
+  const spec=STALKER_CAT_API[type];if(!spec)return;
+  S.catLoaded=S.catLoaded||{};
+  const key=type+':'+id;
+  if(S.catLoaded[key])return;
+  S.catLoaded[key]=true;
+  const [api,filterKey,sortby,map]=spec;
+  const flag=type==='live'?'loadingLive':type==='vod'?'loadingVod':type==='series'?'loadingSeries':'loadingRadio';
+  S[flag]=true;renderAll();
+  try{
+    const rows=await stalkerPaged(api,'get_ordered_list',{[filterKey]:id,sortby},STALKER_CAT_PAGES);
+    if(Array.isArray(rows)&&rows.length){
+      const arr=type==='live'?S.live:type==='vod'?S.vod:type==='series'?S.series:S.radio;
+      const seen=new Set(arr.map(keyOf));
+      for(const r of rows){
+        if(r&&r._srcCat===undefined)r._srcCat=id;
+        const item=map(r);
+        if(!seen.has(keyOf(item))){seen.add(keyOf(item));arr.push(item)}
+      }
+    }else if(!Array.isArray(rows)){S.catLoaded[key]=false}   /* fetch failed — allow a retry */
+  }catch(e){S.catLoaded[key]=false}
+  finally{S[flag]=false;if(typeof updateHomeCounts==='function')updateHomeCounts();renderAll()}
+}
 /* pick a category from the category page → drop into its channel grid */
-function openCategory(cat){if($('catList')){S.catScroll=$('catList').scrollTop;S.catScrollTab=S.tab;}S.cat=cat;S.q='';if($('search'))$('search').value='';if($('catpage'))$('catpage').classList.add('hidden');if(mobile()&&$('side'))$('side').classList.remove('open');renderAll();if($('grid'))$('grid').scrollTop=0;}
+function openCategory(cat){if($('catList')){S.catScroll=$('catList').scrollTop;S.catScrollTab=S.tab;}S.cat=cat;ensureCategoryLoaded(S.tab,cat);S.q='';if($('search'))$('search').value='';if($('catpage'))$('catpage').classList.add('hidden');if(mobile()&&$('side'))$('side').classList.remove('open');renderAll();if($('grid'))$('grid').scrollTop=0;}
 /* return to the category list, restoring scroll (used by menu button + edge-swipe) */
 function backToCategories(){showCategories(S.tab,true);}
 /* Top-bar back: step out one level at a time — from a category's grid back to that type's category
@@ -3580,7 +3617,7 @@ $('video').addEventListener('playing',()=>{const pbx=$('playerBox');if(pbx)pbx.c
 $('video').addEventListener('timeupdate',()=>{const v=$('video');if(S.current&&!isLiveLike(S.current)){const t=v.currentTime||0;if(t>1&&isFinite(t))S.resume[keyOf(S.current)]=t;}});
 document.addEventListener('fullscreenchange',()=>{const fsb=$('fsBtn');if(fsb)fsb.innerHTML=document.fullscreenElement?ICONS.fsExit:ICONS.fsEnter;showBar()});
 /* v27: switching Live/Movies/Series keeps the menu OPEN (so every category is visible to pick from) and resets to All — the grid behind it already lists the full catalog of that type. Only picking a category closes the sheet. */
-document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;S.cat='';renderAll();ensureTypeLoaded(S.tab);if(S.tab==='vod'||S.tab==='series')warmTranscoder();});$('search').oninput=e=>{S.q=e.target.value;renderAll()};$('cats').onclick=e=>{const st=e.target.closest('[data-favcat]');if(st){e.stopPropagation();const fk=catFavKey(st.dataset.favcat);S.favCats.has(fk)?S.favCats.delete(fk):S.favCats.add(fk);saveFavCats();renderCats();return}const b=e.target.closest('.cat');if(!b)return;S.cat=b.dataset.cat;renderAll();if(mobile())$('side').classList.remove('open')};$('episodeClose').onclick=()=>$('episodeSheet').classList.remove('show');$('episodeSheet').onclick=e=>{if(e.target.id==='episodeSheet')$('episodeSheet').classList.remove('show')};let lastCardTap={key:'',time:0};$('grid').onclick=e=>{const pl=e.target.closest('[data-play]');if(pl){e.stopPropagation();const x=findByKey(pl.dataset.key);if(x)routePlayback(x,pl.dataset.play,false);return}const fav=e.target.closest('[data-fav]');if(fav){e.stopPropagation();const k=fav.dataset.fav;S.favs.has(k)?S.favs.delete(k):S.favs.add(k);saveFavs();renderAll();return}/* v5.6: ⋮ on a poster opens the details popup */const gi=e.target.closest('[data-info]');if(gi){e.stopPropagation();const x=findByKey(gi.dataset.info);if(x)openInfo(x);return}/* v5.1: tap a poster to play (series opens its episodes) */const gc=e.target.closest('.gcard');if(gc){const x=findByKey(gc.dataset.key);if(x)playItem(x);return}const c=e.target.closest('.card');if(c){const x=findByKey(c.dataset.key);if(!x)return;/* v3.5: tapping the POSTER opens the details popup (movies/series); the name still plays */if(e.target.closest('.poster')&&!isLiveLike(x)){openInfo(x);return}const now=Date.now(),dbl=lastCardTap.key===c.dataset.key&&now-lastCardTap.time<520;lastCardTap={key:c.dataset.key,time:now};if(dbl){fs();return}playItem(x)}};
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;S.cat='';renderAll();ensureTypeLoaded(S.tab);if(S.tab==='vod'||S.tab==='series')warmTranscoder();});$('search').oninput=e=>{S.q=e.target.value;renderAll()};$('cats').onclick=e=>{const st=e.target.closest('[data-favcat]');if(st){e.stopPropagation();const fk=catFavKey(st.dataset.favcat);S.favCats.has(fk)?S.favCats.delete(fk):S.favCats.add(fk);saveFavCats();renderCats();return}const b=e.target.closest('.cat');if(!b)return;S.cat=b.dataset.cat;ensureCategoryLoaded(S.tab,S.cat);renderAll();if(mobile())$('side').classList.remove('open')};$('episodeClose').onclick=()=>$('episodeSheet').classList.remove('show');$('episodeSheet').onclick=e=>{if(e.target.id==='episodeSheet')$('episodeSheet').classList.remove('show')};let lastCardTap={key:'',time:0};$('grid').onclick=e=>{const pl=e.target.closest('[data-play]');if(pl){e.stopPropagation();const x=findByKey(pl.dataset.key);if(x)routePlayback(x,pl.dataset.play,false);return}const fav=e.target.closest('[data-fav]');if(fav){e.stopPropagation();const k=fav.dataset.fav;S.favs.has(k)?S.favs.delete(k):S.favs.add(k);saveFavs();renderAll();return}/* v5.6: ⋮ on a poster opens the details popup */const gi=e.target.closest('[data-info]');if(gi){e.stopPropagation();const x=findByKey(gi.dataset.info);if(x)openInfo(x);return}/* v5.1: tap a poster to play (series opens its episodes) */const gc=e.target.closest('.gcard');if(gc){const x=findByKey(gc.dataset.key);if(x)playItem(x);return}const c=e.target.closest('.card');if(c){const x=findByKey(c.dataset.key);if(!x)return;/* v3.5: tapping the POSTER opens the details popup (movies/series); the name still plays */if(e.target.closest('.poster')&&!isLiveLike(x)){openInfo(x);return}const now=Date.now(),dbl=lastCardTap.key===c.dataset.key&&now-lastCardTap.time<520;lastCardTap={key:c.dataset.key,time:now};if(dbl){fs();return}playItem(x)}};
 if($('viewToggle'))$('viewToggle').onclick=()=>toggleViewMode();
 if($('infoClose'))$('infoClose').onclick=()=>$('infoSheet').classList.remove('show');
 if($('infoCancel'))$('infoCancel').onclick=()=>$('infoSheet').classList.remove('show');
