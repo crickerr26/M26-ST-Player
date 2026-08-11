@@ -903,7 +903,7 @@ function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.re
 /* Version scheme restarts here at 5.0 by owner request; the previous 7.x line is retired.
    Bump this on every release that changes anything a user can see — it is the single source for
    the splash screen, the login screen and the version badges, so nothing else needs editing. */
-const APP_VERSION='5.3';
+const APP_VERSION='5.4';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -945,7 +945,7 @@ const ICONS={
   sub:'<svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><line x1="7" y1="11" x2="11" y2="11"/><line x1="14" y1="11" x2="17" y2="11"/><line x1="7" y1="15" x2="13" y2="15"/><line x1="16" y1="15" x2="17" y2="15"/></svg>',
   download:'<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M5 21h14"/></svg>'
 };
-const S={provider:'stalker',stalker:{portal:'',mac:'',user:'',pass:'',token:'',endpoint:''},url:'',user:'',pass:'',tab:'live',cat:'',q:'',liveCats:[],live:[],vodCats:[],vod:[],seriesCats:[],series:[],radioCats:[],radio:[],current:null,hls:null,ts:null,seq:0,favs:new Set(),favCats:new Set(),orders:{live:[],vod:[],series:[],radio:[]},recent:[],busy:false,playerModes:{live:'auto',vod:'auto',series:'auto',radio:'auto'},extLaunch:null,lastStreamStopAt:0,lastExtLaunchAt:0,resume:{},catQ:'',catScroll:0,catScrollTab:'',viewModes:{live:'list',vod:'grid',series:'grid',radio:'list'},transFast:false};
+const S={provider:'stalker',stalker:{portal:'',mac:'',user:'',pass:'',token:'',endpoint:''},url:'',user:'',pass:'',tab:'live',cat:'',q:'',liveCats:[],live:[],vodCats:[],vod:[],seriesCats:[],series:[],radioCats:[],radio:[],current:null,hls:null,ts:null,seq:0,favs:new Set(),favCats:new Set(),orders:{live:[],vod:[],series:[],radio:[]},recent:[],busy:false,playerModes:{live:'auto',vod:'auto',series:'auto',radio:'auto'},extLaunch:null,lastStreamStopAt:0,lastExtLaunchAt:0,resume:{},relayRoutes:[],catQ:'',catScroll:0,catScrollTab:'',viewModes:{live:'list',vod:'grid',series:'grid',radio:'list'},transFast:false};
 function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('show'),2200)}
 /* v95: every "Copy link" button called navigator.clipboard.writeText() without awaiting or
    catching its promise — writeText() can reject (permission denied, document not focused, no
@@ -986,7 +986,21 @@ function accentBg(name){let h=0;const s=String(name||'');for(let i=0;i<s.length;
 function normalize(raw){let u=String(raw||'').trim();if(!u)return'';if(!/^https?:\/\//i.test(u))u='http://'+u;const x=new URL(u);x.hash='';x.search='';return x.href.replace(/\/+$/,'')}
 function mobile(){return /iphone|ipad|ipod|android|mobile/i.test(navigator.userAgent||'')||innerWidth<800||('ontouchstart'in window&&innerWidth<980)}
 function blocked(u){try{const x=new URL(u);return location.protocol==='https:'&&x.protocol==='http:'&&!/localhost|127\.0\.0\.1/i.test(x.hostname)}catch{return false}}
-function proxyUrl(u){return PROXY+encodeURIComponent(u)}
+/* v5.4: a Stalker portal issues a stream link to the IP that asked for it, so the link only works
+   when the fetch comes from that same address. create_link goes through the configured relay, but
+   streams were still going to a different host entirely — the same-origin Worker or the standalone
+   proxy — so the portal saw a stranger presenting a link it had issued to someone else and refused
+   it. That is why a channel plays in a native app on the phone (one address for everything) and
+   fails here, and why handing the same URL to VLC also failed: a third address again.
+   When the relay reports it serves /proxy (see its /health), send streams through it too, so the
+   link is created and used by the same host. A relay without /proxy — the serverless build, where
+   a long stream cannot live — keeps the old route. */
+function proxyBase(){
+  const r=stalkerRelayBase();
+  if(r&&Array.isArray(S.relayRoutes)&&S.relayRoutes.indexOf('/proxy')>=0)return r.replace(/\/+$/,'')+'/proxy?url=';
+  return PROXY;
+}
+function proxyUrl(u){return proxyBase()+encodeURIComponent(u)}
 function accountUrl(){return `${S.url}/player_api.php?username=${encodeURIComponent(S.user)}&password=${encodeURIComponent(S.pass)}`}
 function apiUrl(action,extra=''){return `${accountUrl()}&action=${action}${extra}`}
 /* v24: multi-proxy fallback chain. The old code depended on ONE worker proxy —
@@ -1920,7 +1934,8 @@ async function warmRelay(){
   const ctrl=new AbortController();const to=setTimeout(()=>ctrl.abort(),60000);
   try{
     const r=await fetch(base.replace(/\/+$/,'')+'/health',{cache:'no-store',signal:ctrl.signal});
-    setRStatus(r.ok?'ok':'offline',r.ok?'Relay ready':'Relay returned '+r.status);
+    try{const d=await r.clone().json();S.relayRoutes=Array.isArray(d&&d.routes)?d.routes:[]}catch(e){S.relayRoutes=[]}
+    setRStatus(r.ok?'ok':'offline',r.ok?('Relay ready'+(S.relayRoutes.indexOf('/proxy')>=0?' (streams too)':'')):'Relay returned '+r.status);
   }catch(e){setRStatus('offline','Relay did not respond')}
   finally{clearTimeout(to)}
 }
@@ -1932,8 +1947,9 @@ async function testRelay(){
   const ctrl=new AbortController();const to=setTimeout(()=>ctrl.abort(),60000);
   try{
     const r=await fetch(base.replace(/\/+$/,'')+'/health',{cache:'no-store',signal:ctrl.signal});
-    let ok=false;try{const d=await r.json();ok=!!(d&&d.ok)}catch(e){}
-    setRStatus(r.ok&&ok?'ok':'offline',r.ok&&ok?'Relay ready':'Reachable but not the relay (HTTP '+r.status+')');
+    let ok=false;try{const d=await r.json();ok=!!(d&&d.ok);S.relayRoutes=Array.isArray(d&&d.routes)?d.routes:[]}catch(e){S.relayRoutes=[]}
+    const both=S.relayRoutes.indexOf('/proxy')>=0;
+    setRStatus(r.ok&&ok?'ok':'offline',r.ok&&ok?('Relay ready'+(both?' — portal + streams':' — portal only')):'Reachable but not the relay (HTTP '+r.status+')');
   }catch(e){setRStatus('offline','Could not reach the relay — check the URL')}
   finally{clearTimeout(to)}
 }
