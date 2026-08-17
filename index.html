@@ -713,7 +713,7 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
       <div class="field"><label>MAC Address</label><div class="macRow"><input id="stalkerMac" readonly autocomplete="off"><button type="button" class="iconbtn macBtn" id="stalkerMacEdit" title="Edit MAC address" aria-label="Edit MAC address"></button><button type="button" class="iconbtn macBtn" id="stalkerMacRenew" title="Generate a new MAC address" aria-label="Generate a new MAC address"></button><button type="button" class="iconbtn macBtn" id="stalkerMacCopy" title="Copy MAC address" aria-label="Copy MAC address"></button></div></div>
       <div class="field"><label>Username</label><input id="stalkerUser" autocomplete="username"></div>
       <div class="field"><label>Password</label><div class="pwWrap"><input id="stalkerPass" type="password" autocomplete="current-password"><button type="button" class="pwToggle" id="stalkerPwToggle" aria-label="Show or hide password" tabindex="-1"></button></div></div>
-      <div class="field"><label>Portal URL</label><input id="stalkerUrl" placeholder="http://your-portal-address.com" autocomplete="url"></div>
+      <div class="field"><label>Portal URL</label><input id="stalkerUrl" placeholder="http://your-portal.com:8080/c/" autocomplete="url"></div>
       <button class="pillbtn primary" id="loginStalkerBtn">Connect Stalker</button>
       <button class="pillbtn" id="loginDiagBtn" type="button" style="margin-top:8px;width:100%">Portal diagnostics</button>
     </div>
@@ -876,7 +876,7 @@ function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.re
 /* Version scheme restarts here at 5.0 by owner request; the previous 7.x line is retired.
    Bump this on every release that changes anything a user can see — it is the single source for
    the splash screen, the login screen and the version badges, so nothing else needs editing. */
-const APP_VERSION='6.2';
+const APP_VERSION='6.3';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1119,7 +1119,88 @@ function commitStalkerMacField(){
   }
   return getOrCreateStalkerMac();
 }
-const STALKER_EP_CANDIDATES=['portal.php','stalker_portal/server/load.php','server/load.php','c/portal.php','stalker_portal/portal.php','magportal/portal.php','p/portal.php','k/portal.php'];
+const STALKER_EP_CANDIDATES=['portal.php','stalker_portal/server/load.php','server/load.php','c/portal.php','stalker_portal/portal.php','stalker_portal/c/portal.php','c/server/load.php','magportal/portal.php','magaccess/portal.php','portalstb/portal.php','ministra/portal.php','p/portal.php','k/portal.php'];
+/* v6.3: the candidate list above is rooted at the host, so the PATH of the portal URL the user
+   typed was thrown away entirely (the relay built its target from portal.origin). Providers hand
+   out portal addresses with a path far more often than not — http://host/c/, http://host/stalker_portal/,
+   http://host/magportal/ — and dropping it means every probe lands somewhere the portal doesn't
+   serve: eight 404s, then the unactionable "Could not reach the Stalker portal. (HTTP 404)".
+   Derive the candidates from what was actually typed first, then fall back to the known roots. */
+function stalkerEpsFromPath(portal){
+  let p='';
+  try{p=new URL(portal).pathname||''}catch{return []}
+  p=p.replace(/^\/+/,'').replace(/\/+$/,'');
+  if(!p)return [];
+  const out=[];
+  if(/\.php$/i.test(p)){
+    if(/(?:portal|load)\.php$/i.test(p))out.push(p);   // the exact loader script, typed in full
+    p=p.replace(/\/?[^\/]*$/,'');                      // ...and its folder, as a prefix for the rest
+  }
+  if(p){
+    out.push(p+'/portal.php',p+'/server/load.php');
+    if(!/(^|\/)c$/.test(p))out.push(p+'/c/portal.php');   // …/c/c/portal.php is nobody's install
+    out.push(p+'/load.php');
+  }
+  return out.filter(e=>/^(?:[A-Za-z0-9._~-]{1,40}\/){0,4}(?:portal|load)\.php$/.test(e));
+}
+function stalkerEpCandidates(portal){
+  const seen=new Set(),out=[];
+  for(const e of stalkerEpsFromPath(portal).concat(STALKER_EP_CANDIDATES))if(!seen.has(e)){seen.add(e);out.push(e)}
+  return out;
+}
+/* v6.3: a Stalker panel is very often published on a non-default port — :8080/c/ is the single most
+   common form — while the same hostname on :80 serves an ordinary website or the provider's shop
+   page, which answers every loader path with a 404. That is indistinguishable from "portal is down"
+   in the UI, and it is the most common way a working subscription fails to log in here. When the
+   typed URL carries no explicit port and nothing answers on the default one, look for the portal on
+   the ports these panels actually run on before reporting failure. */
+const STALKER_PORT_CANDIDATES=[8080,8000,25461,2082,2086,2095,88,8081];
+function stalkerOriginCandidates(portal){
+  let u;try{u=new URL(portal)}catch{return [portal]}
+  if(u.port)return [portal];
+  const out=[portal];
+  for(const port of STALKER_PORT_CANDIDATES){
+    const v=new URL(portal);v.port=String(port);
+    out.push(v.href.replace(/\/+$/,''));
+  }
+  return out;
+}
+async function stalkerProbeToken(portal,ep,mac,ms){
+  const qs=new URLSearchParams({portal,ep,mac,token:'',JsHttpRequest:'1-xml',type:'stb',action:'handshake'});
+  const r=await fetchWithTimeout(stalkerProxyBase()+'?'+qs.toString(),ms||12000);
+  if(!r.ok)return '';
+  const txt=await r.text();
+  let d;try{d=JSON.parse(txt)}catch{return ''}
+  return (d&&d.js&&d.js.token)||'';
+}
+/* Tries the same host on each candidate port (a small, bounded set of loader paths per port) and,
+   on the first one that hands back a real session token, adopts that address as the portal for the
+   rest of the session. Returns the token, or '' when nothing answered anywhere. */
+async function stalkerFindPortal(){
+  const st=S.stalker||{};
+  if(!st.portal||!st.mac||!stalkerProxyBase())return '';
+  /* Only ever a login-time search. Once a loader path has answered, the address is known good, and
+     a later reach failure is the portal being flaky mid-session — hunting ports then would stall
+     playback behind a minute of probes for nothing. */
+  if(st.endpoint)return '';
+  const origins=stalkerOriginCandidates(st.portal).slice(1);
+  if(!origins.length)return '';
+  try{if(typeof load==='function')load(true,'Looking for the portal address…')}catch(e){}
+  const deadline=Date.now()+45000;   // a firewalled port can only be waited out, not asked
+  for(const origin of origins){
+    for(const ep of stalkerEpCandidates(origin).slice(0,4)){
+      if(Date.now()>deadline)return '';
+      let token='';
+      try{token=await stalkerProbeToken(origin,ep,st.mac,8000)}catch(e){}
+      if(token){
+        st.portal=origin;st.endpoint=ep;st.token=token;
+        try{if($('stalkerUrl'))$('stalkerUrl').value=origin}catch(e){}
+        return token;
+      }
+    }
+  }
+  return '';
+}
 /* v98: the portal relay is normally this same origin (see _worker.js), but that runs on Cloudflare
    — and these portals sit behind Cloudflare too, so portal calls arrive from Cloudflare's own
    network carrying a MAG set-top-box User-Agent, which can draw a bot challenge that answers with
@@ -1164,7 +1245,7 @@ async function stalkerRequest(type,action,extra={}){
   if(!PROXY)throw Error('Could not reach the Stalker portal. Check the portal URL.');
   const st=S.stalker||{};
   if(!st.portal||!st.mac)throw Error('Could not reach the Stalker portal. Check the portal URL.');
-  const eps=st.endpoint?[st.endpoint]:STALKER_EP_CANDIDATES;
+  const eps=st.endpoint?[st.endpoint]:stalkerEpCandidates(st.portal);
   let lastErr=null;
   for(const ep of eps){
     const params=Object.assign({portal:st.portal,ep,mac:st.mac,token:st.token||'',JsHttpRequest:'1-xml',type,action},extra);
@@ -1200,9 +1281,22 @@ async function stalkerRequest(type,action,extra={}){
   throw Object.assign(Error('Could not reach the Stalker portal. Check the portal URL.'),{detail:(lastErr&&lastErr.message)||'no response from any known portal path'});
 }
 async function stalkerHandshake(){
-  const d=await stalkerRequest('stb','handshake',{token:''});
-  const token=d&&d.js&&d.js.token;
-  if(!token)throw Error('Could not create a Stalker session. Make sure this MAC is activated by your IPTV provider.');
+  let d=null,err=null;
+  try{d=await stalkerRequest('stb','handshake',{token:''})}catch(e){err=e}
+  let token=d&&d.js&&d.js.token;
+  /* v6.3: nothing answered at the address exactly as typed. Before reporting failure, go looking
+     for the portal on the other ports these panels are published on — an address whose :80 is a
+     plain website (so every loader path 404s) is the usual reason a live, paid-up subscription
+     can't log in here. A firewall/Cloudflare block or an auth refusal means the portal DID answer,
+     so those are reported as-is instead of being buried under a port hunt. */
+  if(!token&&err&&/Could not reach the Stalker portal/i.test(String(err.message||''))){
+    token=await stalkerFindPortal();
+    if(token)err=null;
+  }
+  if(!token){
+    if(err)throw err;
+    throw Error('Could not create a Stalker session. Make sure this MAC is activated by your IPTV provider.');
+  }
   S.stalker.token=token;
   return token;
 }
@@ -1338,7 +1432,7 @@ async function runPortalDiagnostics(write){
      HTTP status and the first slice of its body so the actual cause is visible. */
   emit('— endpoint probe (stb/handshake) —');
   let liveEp='';
-  for(const ep of STALKER_EP_CANDIDATES){
+  for(const ep of stalkerEpCandidates(portal)){
     const t0=Date.now();
     try{
       const qs=new URLSearchParams({portal,ep,mac,token:'',JsHttpRequest:'1-xml',type:'stb',action:'handshake'});
@@ -1350,7 +1444,30 @@ async function runPortalDiagnostics(write){
       emit('• /'+ep+'  ['+(Date.now()-t0)+'ms]  HTTP '+r.status+note+'\n    '+(plainBody(txt,500)||'(empty body)'));
     }catch(e){emit('• /'+ep+'  ['+(Date.now()-t0)+'ms]  REQUEST FAILED: '+((e&&e.message)||e))}
   }
-  if(!liveEp&&!st.token){emit('\nNo path returned a token. The portal URL (or its port), or this MAC\'s registration, is the problem — not the catalog code.\n— done —');return lines.join('\n')}
+  /* v6.3: when nothing answers at the address as typed, the next question is always "is the portal
+     on a different port?" — so answer it here instead of leaving the user to guess. Same search the
+     login itself now performs, with every result printed. */
+  if(!liveEp&&!st.token){
+    const alts=stalkerOriginCandidates(portal).slice(1);
+    if(alts.length){
+      emit('\n— other ports on '+(()=>{try{return new URL(portal).hostname}catch{return portal}})()+' —');
+      for(const origin of alts){
+        const eps=stalkerEpCandidates(origin).slice(0,4);
+        let hit='';
+        for(const ep of eps){
+          const t0=Date.now();
+          try{
+            const tk=await stalkerProbeToken(origin,ep,mac,9000);
+            emit('• '+origin+'/'+ep+'  ['+(Date.now()-t0)+'ms]  '+(tk?'← TOKEN OK':'no token'));
+            if(tk){hit=origin+'/'+ep;break}
+          }catch(e){emit('• '+origin+'/'+ep+'  ['+(Date.now()-t0)+'ms]  FAILED: '+((e&&e.message)||e))}
+        }
+        if(hit){emit('\nFOUND IT: use this portal URL → '+origin+'\n— done —');return lines.join('\n')}
+      }
+    }
+    emit('\nNo path returned a token, on this port or the usual alternatives. The portal URL, or this MAC\'s registration, is the problem — not the catalog code.\n— done —');
+    return lines.join('\n');
+  }
   if(!st.token){emit('\n/'+liveEp+' handshakes fine. Log in, then run this again for the catalog checks.\n— done —');return lines.join('\n')}
 
   emit('\n— session —');
@@ -1611,6 +1728,14 @@ function mapStalkerError(e,mac){
      portal, which has nothing to do with the password — saying "check your username and
      password" for a 403 sent debugging in the wrong direction. */
   if(/firewall/i.test(m))return 'A firewall in front of this portal is refusing the app — not a wrong password. This is set by whoever runs the portal. Try the portal address your provider lists for MAG / Ministra / Smart STB devices, or ask them to allow this app.';
+  /* v6.3: 404 on every candidate path means the host is up and answering — there is simply no
+     Stalker loader at that address. Saying "check the portal URL" without saying WHAT about it is
+     wrong sent people to re-check their password instead; the answer is almost always a missing
+     port or folder (:8080/c/), which the app has by this point already searched for and not found. */
+  if(/HTTP 404/.test(m)||/HTTP 404/.test((e&&e.detail)||'')){
+    let hasPort=false;try{hasPort=!!new URL((S.stalker||{}).portal||'').port}catch(e2){}
+    return 'That address answers, but there is no Stalker portal on it — every known loader path returned 404'+(hasPort?'':', and the ports these panels usually run on were searched too')+'. A portal URL normally includes a port and a folder, like http://host:8080/c/. Use exactly the MAG / Ministra address your provider gave you — the billing panel address is not it.';
+  }
   if(/HTTP 401/.test(m))return 'Login rejected — the portal did not accept this username/password for this MAC.';
   if(/HTTP 403/.test(m))return 'The portal refused the request (403). That is not necessarily your password — a firewall in front of the portal also returns 403. Check the MAC is registered on THIS portal URL, then tap Portal diagnostics for the exact reply.'+((e&&e.detail)?' ['+e.detail+']':'');
   if(e&&e.detail)return m+' ('+e.detail+') — tap Portal diagnostics for the full reply.';
@@ -1663,8 +1788,13 @@ async function loginStalker(){
     if(!genres.length)probe=await stalkerRequest('itv','get_ordered_list',{genre:'*',p:1}).then(d=>(d&&d.js&&d.js.data)||[]).catch(()=>[]);
     if(!genres.length&&!probe.length)throw Object.assign(Error('not_activated'),{code:'not_activated'});
     S.provider='stalker';
+    /* v6.3: save the address that actually WORKED, not the one that was typed — stalkerHandshake()
+       may have found the portal on another port, and re-saving the typed one would make the next
+       launch repeat the whole failed search. */
+    const usedPortal=S.stalker.portal||portal;
     saveStalkerCreds();
-    try{upsertProfile({id:'stalker:'+portal+':'+user,provider:'stalker',portal,user,pass})}catch(e){}
+    if($('stalkerUrl'))$('stalkerUrl').value=usedPortal;
+    try{upsertProfile({id:'stalker:'+usedPortal+':'+user,provider:'stalker',portal:usedPortal,user,pass})}catch(e){}
     $('login').classList.add('hidden');showHome();toast('Connected — loading your channels, movies and series…');
     /* Don't block the login screen on the full catalog: this portal paginates at 14 items per
        page, and a large VOD/series library can be thousands of pages — waiting for all of it

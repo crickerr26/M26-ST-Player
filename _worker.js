@@ -27,9 +27,25 @@ function rewriteLocation(location, requestUrl) {
 /* Stalker/MAG/Ministra portal proxy. Browsers can't send the MAC-address cookie or the MAG
    set-top-box User-Agent these portals require to respond, and most send no CORS headers at
    all — so Stalker requests are relayed here, where those headers are set server-side. This is
-   NOT an open "fetch any URL" proxy: only GET requests to one of the known set of Stalker
-   loader scripts, on a portal host the caller supplies, are forwarded. */
-const STALKER_ENDPOINTS = new Set(['portal.php', 'stalker_portal/server/load.php', 'server/load.php', 'c/portal.php', 'stalker_portal/portal.php', 'magportal/portal.php', 'p/portal.php', 'k/portal.php']);
+   NOT an open "fetch any URL" proxy: only GET requests to a path ending in a Stalker loader
+   script, on a portal host the caller supplies, are forwarded. */
+/* v6.3: the endpoint is no longer a fixed list. A portal URL usually carries the folder the panel
+   is installed in (…/c/, …/stalker_portal/, …/magportal/), and that folder used to be discarded
+   here — the target was always built from portal.origin, so a correct portal URL with a path could
+   never be reached and 404'd on every hardcoded candidate. The app now derives loader paths from
+   the URL the user typed, so this has to accept a path it wasn't compiled with. It is still not an
+   open proxy: the path must be a short chain of plain segments ending in the Stalker loader script
+   itself, so nothing but portal.php / load.php can ever be requested through here. */
+const STALKER_EP_RE = /^(?:[A-Za-z0-9._~-]{1,40}\/){0,4}(?:portal|load)\.php$/;
+function validStalkerEndpoint(ep) {
+  if (!STALKER_EP_RE.test(ep)) return false;
+  return !ep.split('/').some(s => s === '.' || s === '..');
+}
+// Loader folder, used as the Referer the portal expects ('/c/' when it sits at the root).
+function stalkerReferer(origin, ep) {
+  const i = ep.lastIndexOf('/');
+  return origin + '/' + (i < 0 ? 'c/' : ep.slice(0, i + 1));
+}
 const STALKER_UA = 'Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3';
 
 async function handleStalkerProxy(request) {
@@ -45,7 +61,7 @@ async function handleStalkerProxy(request) {
   const ep = params.get('ep') || '';
   const mac = params.get('mac') || '';
 
-  if (!STALKER_ENDPOINTS.has(ep)) {
+  if (!validStalkerEndpoint(ep)) {
     return new Response('Invalid endpoint', { status: 400, headers: withCors(new Headers()) });
   }
   if (!/^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$/.test(mac)) {
@@ -60,6 +76,11 @@ async function handleStalkerProxy(request) {
   if (portal.protocol !== 'http:' && portal.protocol !== 'https:') {
     return new Response('Invalid portal URL', { status: 400, headers: withCors(new Headers()) });
   }
+  // Same SSRF guard the other two relay builds carry: a caller-supplied portal host must never be
+  // usable to probe a private network from here.
+  if (isPrivateHost(portal.hostname)) {
+    return new Response('Refused', { status: 400, headers: withCors(new Headers()) });
+  }
 
   const forward = new URLSearchParams(params);
   forward.delete('portal');
@@ -73,7 +94,7 @@ async function handleStalkerProxy(request) {
     'Accept': '*/*',
     'Cookie': `mac=${mac}; stb_lang=en; timezone=Europe/London`,
     'X-User-Agent': 'Model: MAG250; Link: WiFi',
-    'Referer': portal.origin + '/c/'
+    'Referer': stalkerReferer(portal.origin, ep)
   });
   if (token) headers.set('Authorization', 'Bearer ' + token);
 

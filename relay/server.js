@@ -8,7 +8,7 @@
    relay on an ordinary host (Render, Fly, a VPS) makes the request arrive from a normal datacenter
    IP instead, sidestepping the Cloudflare-to-Cloudflare path entirely.
 
-   Deliberately NOT an open proxy: only GET, only the known set of Stalker loader scripts,
+   Deliberately NOT an open proxy: only GET, only paths ending in a Stalker loader script,
    only a syntactically valid MAC, and never to a private/loopback address. Same guards as the
    Worker version. Only the small JSON API calls belong here — video segments keep using whatever
    path the app already uses, so a free instance is not asked to push streams.
@@ -17,7 +17,21 @@
 'use strict';
 const http = require('node:http');
 
-const ENDPOINTS = new Set(['portal.php', 'stalker_portal/server/load.php', 'server/load.php', 'c/portal.php', 'stalker_portal/portal.php', 'magportal/portal.php', 'p/portal.php', 'k/portal.php']);
+/* v6.3: the endpoint is a validated path rather than a fixed list. Portal URLs normally carry the
+   folder the panel is installed in (…/c/, …/stalker_portal/, …/magportal/), which this used to
+   discard — the target was built from portal.origin — so a correct portal URL with a path 404'd on
+   every hardcoded candidate. Still not an open proxy: a short chain of plain segments ending in the
+   Stalker loader script itself, so nothing but portal.php / load.php is ever requested. */
+const EP_RE = /^(?:[A-Za-z0-9._~-]{1,40}\/){0,4}(?:portal|load)\.php$/;
+function validEndpoint(ep) {
+  if (!EP_RE.test(ep)) return false;
+  return !ep.split('/').some(s => s === '.' || s === '..');
+}
+// Loader folder, used as the Referer the portal expects ('/c/' when it sits at the root).
+function referer(origin, ep) {
+  const i = ep.lastIndexOf('/');
+  return origin + '/' + (i < 0 ? 'c/' : ep.slice(0, i + 1));
+}
 const STB_UA = 'Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3';
 const MAC_RE = /^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$/;
 const PORT = Number(process.env.PORT) || 8080;
@@ -147,7 +161,7 @@ const server = http.createServer(async (req, res) => {
   const mac = p.get('mac') || '';
   const portalRaw = p.get('portal') || '';
 
-  if (!ENDPOINTS.has(ep)) return send(res, 400, 'Invalid endpoint');
+  if (!validEndpoint(ep)) return send(res, 400, 'Invalid endpoint');
   if (!MAC_RE.test(mac)) return send(res, 400, 'Invalid MAC');
   let portal;
   try { portal = new URL(portalRaw); } catch { return send(res, 400, 'Invalid portal URL'); }
@@ -166,7 +180,7 @@ const server = http.createServer(async (req, res) => {
     'Accept': '*/*',
     'Cookie': `mac=${mac}; stb_lang=en; timezone=Europe/London`,
     'X-User-Agent': 'Model: MAG250; Link: WiFi',
-    'Referer': portal.origin + '/c/'
+    'Referer': referer(portal.origin, ep)
   };
   if (token) headers['Authorization'] = 'Bearer ' + token;
 

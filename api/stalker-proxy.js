@@ -11,11 +11,25 @@
    set-top-box User-Agent the Stalker protocol requires — which can draw a bot challenge that
    answers with HTML instead of JSON. Serving from somewhere else avoids that path.
 
-   Deliberately not an open proxy: GET only, the known Stalker loader scripts only, a valid
+   Deliberately not an open proxy: GET only, paths ending in a Stalker loader script only, a valid
    MAC required, and private/loopback/link-local/metadata targets refused. */
 'use strict';
 
-const ENDPOINTS = new Set(['portal.php', 'stalker_portal/server/load.php', 'server/load.php', 'c/portal.php', 'stalker_portal/portal.php', 'magportal/portal.php', 'p/portal.php', 'k/portal.php']);
+/* v6.3: the endpoint is a validated path rather than a fixed list. Portal URLs normally carry the
+   folder the panel is installed in (…/c/, …/stalker_portal/, …/magportal/), which this used to
+   discard — the target was built from portal.origin — so a correct portal URL with a path 404'd on
+   every hardcoded candidate. Still not an open proxy: a short chain of plain segments ending in the
+   Stalker loader script itself, so nothing but portal.php / load.php is ever requested. */
+const EP_RE = /^(?:[A-Za-z0-9._~-]{1,40}\/){0,4}(?:portal|load)\.php$/;
+function validEndpoint(ep) {
+  if (!EP_RE.test(ep)) return false;
+  return !ep.split('/').some(s => s === '.' || s === '..');
+}
+// Loader folder, used as the Referer the portal expects ('/c/' when it sits at the root).
+function referer(origin, ep) {
+  const i = ep.lastIndexOf('/');
+  return origin + '/' + (i < 0 ? 'c/' : ep.slice(0, i + 1));
+}
 const STB_UA = 'Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3';
 const MAC_RE = /^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$/;
 
@@ -50,7 +64,7 @@ module.exports = async function handler(req, res) {
   const first = v => (Array.isArray(v) ? v[0] : v) || '';
   const ep = first(q.ep), mac = first(q.mac), portalRaw = first(q.portal);
 
-  if (!ENDPOINTS.has(ep)) return res.status(400).send('Invalid endpoint');
+  if (!validEndpoint(ep)) return res.status(400).send('Invalid endpoint');
   if (!MAC_RE.test(mac)) return res.status(400).send('Invalid MAC');
   let portal;
   try { portal = new URL(portalRaw); } catch { return res.status(400).send('Invalid portal URL'); }
@@ -71,7 +85,7 @@ module.exports = async function handler(req, res) {
     'Accept': '*/*',
     'Cookie': `mac=${mac}; stb_lang=en; timezone=Europe/London`,
     'X-User-Agent': 'Model: MAG250; Link: WiFi',
-    'Referer': portal.origin + '/c/'
+    'Referer': referer(portal.origin, ep)
   };
   if (token) headers['Authorization'] = 'Bearer ' + token;
 
