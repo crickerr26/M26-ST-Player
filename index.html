@@ -2653,7 +2653,12 @@ async function playItemBasic(x){
        and the hopeless native attempt drops to last instead of spending the start budget, and the
        transcoder — which turns the same stream into HLS the phone CAN play — is finally offered
        for live at all. It was only ever wired up for Movies and Series. */
-    const rawTsNoMse=!isM3u8&&!tsOk;
+    /* v6.6: only demote the native attempt for a source <video> genuinely cannot open. The v6.5
+       rule was "anything that isn't m3u8", which also caught the portals that hand out a directly
+       playable container (mp4/webm) for live — those play natively on the first try, and pushing
+       them behind two remux routes cost them ~30s of dead attempts. */
+    const nativePlayable=/\.(mp4|m4v|mov|webm|ogv|ogg)(\?|$)/i.test(direct);
+    const rawTsNoMse=!isM3u8&&!tsOk&&!nativePlayable;
     if(!rawTsNoMse)addv(isM3u8?'hls':'native',du);
     if(!isM3u8){
       addv('hls',LIVE_HLS+encodeURIComponent(direct));
