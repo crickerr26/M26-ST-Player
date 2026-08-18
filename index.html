@@ -876,7 +876,7 @@ function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.re
 /* Version scheme restarts here at 5.0 by owner request; the previous 7.x line is retired.
    Bump this on every release that changes anything a user can see — it is the single source for
    the splash screen, the login screen and the version badges, so nothing else needs editing. */
-const APP_VERSION='6.5';
+const APP_VERSION='6.6';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1227,7 +1227,19 @@ function stalkerProxyBase(){
    a credentials failure unless the body is read. Name it, so a firewall block never again gets
    reported as a wrong password. */
 function looksLikeWafBlock(t){return /mod_?security|litespeed|Sorry for the inconvenience|Please report this message|Not Acceptable!/i.test(String(t||''))}
-function looksLikeCfBlock(t){return /cf-(ray|chl|browser-verification)|__cf_chl|Attention Required|Just a moment|Enable JavaScript and cookies|error code:\s*10\d\d|cloudflare/i.test(String(t||''))}
+/* v6.6: this used to count the bare word "cloudflare" ANYWHERE in the body as proof of a block —
+   at any status. Cloudflare brands its own error pages, so a CF-fronted portal answering an
+   ordinary 404 or 502 (wrong loader path, origin down, portal moved) rendered a page with
+   "cloudflare" in the footer and the app confidently reported "the portal's Cloudflare protection
+   is blocking this app", sending the user to argue with their provider about a firewall while the
+   real cause — often something they could fix themselves — was never shown. Real challenge markers
+   still count at any status; a mere mention only counts on the statuses Cloudflare actually refuses
+   with, and even then the caller now prints the status and the page text alongside. */
+function looksLikeCfBlock(t,status){
+  const s=String(t||'');
+  if(/cf-(ray|chl|browser-verification)|__cf_chl|cdn-cgi\/challenge-platform|Attention Required|Just a moment|Checking your browser|Enable JavaScript and cookies|error code:\s*10\d\d/i.test(s))return true;
+  return /cloudflare/i.test(s)&&(status===403||status===429||status===503);
+}
 /* v99: a refusal page is HTML, and the sentence that says WHY sits after the boilerplate title and
    heading. Showing the raw first N characters spent the whole budget on doctype and tags and cut
    the explanation off mid-word — the one thing worth reading. Strip the markup and show the text,
@@ -1261,14 +1273,20 @@ async function stalkerRequest(type,action,extra={}){
            firewall block, and both use 403. */
         let body='';try{body=await r.text()}catch{}
         lastErr=Error('HTTP '+r.status);
-        if(looksLikeCfBlock(body))lastErr=Error('Blocked by the portal’s Cloudflare protection (HTTP '+r.status+')');
-        else if(looksLikeWafBlock(body))lastErr=Error('Blocked by a firewall in front of the portal (HTTP '+r.status+')');
-        else if(body&&body.trim())lastErr.body=plainBody(body,240);
+        const cf=looksLikeCfBlock(body,r.status),waf=!cf&&looksLikeWafBlock(body);
+        if(cf)lastErr=Error('Blocked by the portal’s Cloudflare protection (HTTP '+r.status+')');
+        else if(waf)lastErr=Error('Blocked by a firewall in front of the portal (HTTP '+r.status+')');
+        if(body&&body.trim())lastErr.body=plainBody(body,240);
+        /* v6.6: STOP on a firewall verdict. Something in front of the portal is refusing this
+           client, so the remaining loader paths will be refused identically — walking all of them
+           just fires a dozen more MAG-user-agent requests at a host that is already rate-limiting
+           or challenging us, which can escalate the block. One refusal is the answer. */
+        if(cf||waf){lastErr.detail=lastErr.body||'';break}
         continue;
       }
       const txt=await r.text();
       if(!txt||!txt.trim()){lastErr=Error('Empty response');continue}
-      let data;try{data=JSON.parse(txt)}catch{lastErr=Error(looksLikeCfBlock(txt)?'Blocked by the portal’s Cloudflare protection':looksLikeWafBlock(txt)?'Blocked by a firewall in front of the portal':'Invalid response (portal did not return JSON)');continue}
+      let data;try{data=JSON.parse(txt)}catch{const cf=looksLikeCfBlock(txt,r.status),waf=!cf&&looksLikeWafBlock(txt);lastErr=Error(cf?'Blocked by the portal’s Cloudflare protection':waf?'Blocked by a firewall in front of the portal':'Invalid response (portal did not return JSON)');lastErr.detail=plainBody(txt,240);if(cf||waf)break;continue}
       st.endpoint=ep;
       return data;
     }catch(e){lastErr=e}
@@ -1276,7 +1294,7 @@ async function stalkerRequest(type,action,extra={}){
   /* v97: keep the real reason. Collapsing 404 / 502 upstream-unreachable / timeout / non-JSON
      into one generic string made every portal failure look identical and undebuggable — the
      underlying cause now rides along so the login screen can show what actually happened. */
-  if(lastErr&&/Cloudflare|firewall/i.test(lastErr.message||''))throw lastErr;
+  if(lastErr&&/Cloudflare|firewall/i.test(lastErr.message||'')){lastErr.detail=lastErr.detail||lastErr.body||'';throw lastErr}
   if(lastErr&&/^HTTP 40[13]$/.test(lastErr.message||''))throw Object.assign(lastErr,{detail:lastErr.body||''});
   throw Object.assign(Error('Could not reach the Stalker portal. Check the portal URL.'),{detail:(lastErr&&lastErr.message)||'no response from any known portal path'});
 }
@@ -1440,7 +1458,7 @@ async function runPortalDiagnostics(write){
       const txt=await r.text();
       let note='';
       try{const j=JSON.parse(txt);const tk=j&&j.js&&j.js.token;note=tk?'  ← TOKEN OK':'  parsed, no token';if(tk&&!liveEp)liveEp=ep;}
-      catch{note=looksLikeCfBlock(txt)?'  ← CLOUDFLARE CHALLENGE (portal is blocking this app)':'  not JSON'}
+      catch{note=looksLikeCfBlock(txt,r.status)?'  ← CLOUDFLARE CHALLENGE (portal is blocking this app)':looksLikeWafBlock(txt)?'  ← FIREWALL BLOCK':'  not JSON'}
       emit('• /'+ep+'  ['+(Date.now()-t0)+'ms]  HTTP '+r.status+note+'\n    '+(plainBody(txt,500)||'(empty body)'));
     }catch(e){emit('• /'+ep+'  ['+(Date.now()-t0)+'ms]  REQUEST FAILED: '+((e&&e.message)||e))}
   }
@@ -1722,12 +1740,24 @@ function mapStalkerError(e,mac){
     if(st.user||st.pass)return 'The portal accepted the connection but this account has no channels. Check the username and password, and that the subscription is active.';
     return 'This device MAC is not activated. Give '+(mac||st.mac||'')+' to your IPTV provider and ask them to register it, or enter the username and password they gave you.';
   }
-  if(/Cloudflare/i.test(m)||/Cloudflare/i.test((e&&e.detail)||''))return 'The portal’s Cloudflare protection is blocking this app — this is not a wrong password. The portal owner has to allowlist it, or the app has to reach the portal from somewhere else.';
+  /* v6.6: name the remedy the app actually ships. "Reach the portal from somewhere else" is exactly
+     what the Portal relay URL field in Stream tools does — the relay runs off Cloudflare, so portal
+     calls arrive from an ordinary host instead of Worker-to-Cloudflare, which is what draws the
+     challenge. Saying that beats sending the user to ask their provider to allowlist an app.
+     The portal's own words are quoted too: a real challenge page and a Cloudflare-branded 404 read
+     very differently, and only one of them is a firewall problem. */
+  if(/Cloudflare/i.test(m)){
+    const relay=stalkerRelayBase();
+    return 'The portal’s Cloudflare protection is refusing this app — not a wrong password.'
+      +(relay?' Your relay ('+hostOf(relay)+') is being refused too, so the block is on the portal side: ask the provider to allowlist it.'
+             :' Fix it from Stream tools → “Portal relay URL”: deploy the relay from this project (one-click Render) and paste its address there, so portal calls stop coming from Cloudflare. Or ask your provider to allowlist this app.')
+      +((e&&e.detail)?' [portal said: '+e.detail+']':'');
+  }
   /* v98: 401 and 403 are NOT the same thing here and must not share a message. 401 is the portal
      genuinely refusing these credentials; 403 is just as often a firewall/WAF in front of the
      portal, which has nothing to do with the password — saying "check your username and
      password" for a 403 sent debugging in the wrong direction. */
-  if(/firewall/i.test(m))return 'A firewall in front of this portal is refusing the app — not a wrong password. This is set by whoever runs the portal. Try the portal address your provider lists for MAG / Ministra / Smart STB devices, or ask them to allow this app.';
+  if(/firewall/i.test(m))return 'A firewall in front of this portal is refusing the app — not a wrong password. This is set by whoever runs the portal. Try the portal address your provider lists for MAG / Ministra / Smart STB devices, set a relay in Stream tools so the request comes from a different host, or ask them to allow this app.'+((e&&e.detail)?' [portal said: '+e.detail+']':'');
   /* v6.3: 404 on every candidate path means the host is up and answering — there is simply no
      Stalker loader at that address. Saying "check the portal URL" without saying WHAT about it is
      wrong sent people to re-check their password instead; the answer is almost always a missing
