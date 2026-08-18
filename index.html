@@ -876,7 +876,7 @@ function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.re
 /* Version scheme restarts here at 5.0 by owner request; the previous 7.x line is retired.
    Bump this on every release that changes anything a user can see — it is the single source for
    the splash screen, the login screen and the version badges, so nothing else needs editing. */
-const APP_VERSION='6.7';
+const APP_VERSION='6.8';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1081,7 +1081,14 @@ try{
     store.setItem(INBUILT_PRIORITY_KEY,'1');
   }
   store.setItem(PLAYER_MODE_KEY,JSON.stringify(S.playerModes));
-}catch{}try{S.viewModes=Object.assign({live:'list',vod:'grid',series:'grid',radio:'list'},JSON.parse(store.getItem(VIEWMODE_KEY)||'{}'))}catch{}try{if($('stalkerMac'))$('stalkerMac').value=getOrCreateStalkerMac();const sc=JSON.parse(store.getItem(STALKER_KEY)||'null');if(sc){if($('stalkerUrl'))$('stalkerUrl').value=sc.portal||'';if($('stalkerUser'))$('stalkerUser').value=sc.user||'';if($('stalkerPass'))$('stalkerPass').value=sc.pass||''}}catch{}}
+}catch{}try{S.viewModes=Object.assign({live:'list',vod:'grid',series:'grid',radio:'list'},JSON.parse(store.getItem(VIEWMODE_KEY)||'{}'))}catch{}try{
+  /* v6.8: ?mac=AA:BB:... carries the device identity onto a deployment this browser has never
+     opened before. A new deploy URL is a NEW ORIGIN with its own empty storage, so every copy of
+     the MAC is invisible there and the app would otherwise mint a fresh one — the single most
+     likely way a registered MAC "changes by itself" between versions. Pasting it once pins it. */
+  try{const qm=validMac(new URLSearchParams(location.search).get('mac'));if(qm)persistStalkerMac(qm)}catch(e){}
+  if($('stalkerMac'))$('stalkerMac').value=getOrCreateStalkerMac();
+  try{restoreMacFromIdb()}catch(e){}const sc=JSON.parse(store.getItem(STALKER_KEY)||'null');if(sc){if($('stalkerUrl'))$('stalkerUrl').value=sc.portal||'';if($('stalkerUser'))$('stalkerUser').value=sc.user||'';if($('stalkerPass'))$('stalkerPass').value=sc.pass||''}}catch{}}
 function saveFavs(){store.setItem(FAV,JSON.stringify([...S.favs]))}
 function saveFavCats(){store.setItem(FAVCAT,JSON.stringify([...S.favCats]))}
 function catFavKey(c){return S.tab+':'+(c&&c.category_id!=null?c.category_id:c)}
@@ -1095,12 +1102,83 @@ function pushRecent(x){const k=keyOf(x);S.recent=[k,...S.recent.filter(y=>y!==k)
    use), so the rest of the app — Home, Live TV, Movies, Series, the player — needs no further
    changes to display and play Stalker content. */
 function genStalkerMac(){const hex=()=>Math.floor(Math.random()*256).toString(16).padStart(2,'0').toUpperCase();return ['02',hex(),hex(),hex(),hex(),hex()].join(':')}
+const MAC_RE=/^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/;
+const validMac=v=>MAC_RE.test(String(v||'').trim())?String(v).trim().toUpperCase():'';
+/* v6.8: THE MAC IS THE DEVICE IDENTITY AND MUST NOT CHANGE. It used to live in exactly one place —
+   localStorage — so anything that emptied that store (iOS evicting data for a site that isn't
+   installed, private browsing, "clear website data", or simply opening the app on a different
+   deployment URL, which is a different origin with its own empty storage) left nothing behind, and
+   the app quietly minted a NEW random MAC. The provider's registration is against the old one, so
+   the account instantly looks unregistered through no fault of the user.
+   It is now written to three independent places and read back from whichever survived, and the
+   saved login carries a copy too. A fresh MAC is only ever generated when every one of them is
+   empty — and when that happens with a saved login present, it is announced rather than silent. */
+function macCookie(){try{const m=document.cookie.match(/(?:^|;\s*)m26mac=([^;]+)/);return validMac(decodeURIComponent(m?m[1]:''))}catch{return''}}
+function writeMacCookie(mac){try{document.cookie='m26mac='+encodeURIComponent(mac)+'; max-age=63072000; path=/; SameSite=Lax'}catch(e){}}
+function idbMacGet(){return new Promise(res=>{try{
+  const r=indexedDB.open('m26',1);
+  r.onupgradeneeded=()=>{try{r.result.createObjectStore('kv')}catch(e){}};
+  r.onerror=()=>res('');
+  r.onsuccess=()=>{try{const db=r.result;if(!db.objectStoreNames.contains('kv'))return res('');
+    const q=db.transaction('kv','readonly').objectStore('kv').get('mac');
+    q.onsuccess=()=>res(validMac(q.result));q.onerror=()=>res('');}catch(e){res('')}};
+}catch(e){res('')}})}
+function idbMacPut(mac){try{
+  const r=indexedDB.open('m26',1);
+  r.onupgradeneeded=()=>{try{r.result.createObjectStore('kv')}catch(e){}};
+  r.onsuccess=()=>{try{const db=r.result;if(!db.objectStoreNames.contains('kv'))return;
+    db.transaction('kv','readwrite').objectStore('kv').put(mac,'mac')}catch(e){}};
+}catch(e){}}
+/* The saved login is a fourth copy: it survives anything that clears one store but not another,
+   and it keeps the MAC attached to the account it was registered for. */
+function macFromSavedLogin(){
+  try{const c=JSON.parse(store.getItem(STALKER_KEY)||'null');const m=validMac(c&&c.mac);if(m)return m}catch(e){}
+  try{const list=JSON.parse(store.getItem(PROFILES_KEY)||'[]');
+      for(const p of (Array.isArray(list)?list:[])){const m=validMac(p&&p.mac);if(m)return m}}catch(e){}
+  return '';
+}
+function persistStalkerMac(mac,skipIdb){
+  mac=validMac(mac);if(!mac)return '';
+  try{store.setItem(STALKER_MAC_KEY,mac)}catch(e){}
+  writeMacCookie(mac);
+  /* A MAC we just INVENTED must not be written to IndexedDB yet. IndexedDB is the only store that
+     cannot be read synchronously, so it is still unread at this point — writing first would
+     overwrite the very copy that survived, and the async read below would then "recover" the new
+     MAC it had just clobbered. It gets written once that read has come back empty. */
+  if(!skipIdb)idbMacPut(mac);
+  return mac;
+}
+let _macWasGenerated=false;
 function getOrCreateStalkerMac(){
-  try{
-    let mac=store.getItem(STALKER_MAC_KEY);
-    if(mac&&/^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/.test(mac))return mac.toUpperCase();
-    mac=genStalkerMac();store.setItem(STALKER_MAC_KEY,mac);return mac;
-  }catch{return genStalkerMac()}
+  let mac='';
+  try{mac=validMac(store.getItem(STALKER_MAC_KEY))}catch(e){}
+  if(!mac)mac=macCookie();
+  if(!mac)mac=macFromSavedLogin();
+  if(!mac){mac=genStalkerMac();_macWasGenerated=true}
+  return persistStalkerMac(mac,_macWasGenerated)||mac;
+}
+/* IndexedDB is the one store that cannot be read synchronously, so it is checked just after boot.
+   It only ever RESTORES — it replaces the MAC solely when this load had to invent one and nothing
+   else had a copy, so it can never move a MAC out from under a working session. */
+async function restoreMacFromIdb(){
+  if(!_macWasGenerated)return;
+  const kept=await idbMacGet();
+  const inp=$('stalkerMac');
+  if(kept){
+    if(kept!==validMac(inp&&inp.value)){
+      _macWasGenerated=false;
+      persistStalkerMac(kept);
+      if(inp)inp.value=kept;
+    }
+    return;
+  }
+  /* Nothing was stored there — safe to record the one this load generated. */
+  persistStalkerMac(validMac(inp&&inp.value)||'');
+  if(_macWasGenerated&&(macFromSavedLogin()||(()=>{try{return !!store.getItem(STALKER_KEY)}catch(e){return false}})())){
+    /* A saved login exists but every copy of its MAC is gone — say so, because the provider
+       registered the old one and the user is the only one who knows what it was. */
+    if($('err'))$('err').textContent='This browser lost its saved device MAC, so a new one was generated. If your provider registered a different MAC, tap the pencil and type that one back in — otherwise this account will look unregistered.';
+  }
 }
 /* v94: the MAC field can be left mid-edit (readonly=false, "Save" not yet tapped) when Connect
    is pressed — getOrCreateStalkerMac() alone would then silently log in with the OLD stored MAC
@@ -1111,8 +1189,8 @@ function getOrCreateStalkerMac(){
 function commitStalkerMacField(){
   const inp=$('stalkerMac');
   const v=inp?inp.value.trim().toUpperCase():'';
-  if(/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(v)){
-    try{store.setItem(STALKER_MAC_KEY,v)}catch(e){}
+  if(MAC_RE.test(v)){
+    persistStalkerMac(v);
     inp.value=v;inp.readOnly=true;
     if($('stalkerMacEdit')){$('stalkerMacEdit').innerHTML=MAC_ICONS.edit;$('stalkerMacEdit').title='Edit MAC address';}
     return v;
@@ -1856,9 +1934,13 @@ function applyProfile(id){
   const p=loadProfiles().find(x=>x.id===id);
   if(!p)return;
   if($('stalkerUrl'))$('stalkerUrl').value=p.portal;if($('stalkerUser'))$('stalkerUser').value=p.user;if($('stalkerPass'))$('stalkerPass').value=p.pass;
+  /* v6.8: the MAC the provider registered belongs to THIS login — restore it with the rest of the
+     profile instead of connecting with whatever MAC this browser happens to be holding. */
+  const pmac=validMac(p.mac);
+  if(pmac){persistStalkerMac(pmac);if($('stalkerMac'))$('stalkerMac').value=pmac;}
   loginStalker();
 }
-function saveStalkerCreds(){try{store.setItem(STALKER_KEY,JSON.stringify({provider:'stalker',portal:S.stalker.portal,user:S.stalker.user,pass:S.stalker.pass}))}catch(e){}}
+function saveStalkerCreds(){try{store.setItem(STALKER_KEY,JSON.stringify({provider:'stalker',portal:S.stalker.portal,user:S.stalker.user,pass:S.stalker.pass,mac:S.stalker.mac}))}catch(e){}}
 async function loginStalker(){
   if($('err'))$('err').textContent='';
   const portal=normalize($('stalkerUrl').value);
@@ -1888,7 +1970,7 @@ async function loginStalker(){
     const usedPortal=S.stalker.portal||portal;
     saveStalkerCreds();
     if($('stalkerUrl'))$('stalkerUrl').value=usedPortal;
-    try{upsertProfile({id:'stalker:'+usedPortal+':'+user,provider:'stalker',portal:usedPortal,user,pass})}catch(e){}
+    try{upsertProfile({id:'stalker:'+usedPortal+':'+user,provider:'stalker',portal:usedPortal,user,pass,mac})}catch(e){}
     $('login').classList.add('hidden');showHome();toast('Connected — loading your channels, movies and series…');
     /* Don't block the login screen on the full catalog: this portal paginates at 14 items per
        page, and a large VOD/series library can be thousands of pages — waiting for all of it
@@ -4326,7 +4408,15 @@ restore();renderProfileList();renderAll();warmTranscoder();keepTranscoderWarm();
    clears the saved credentials, but never the device MAC). */
 (function(){try{
   const sc=JSON.parse(store.getItem(STALKER_KEY)||'null');
-  if(sc&&sc.portal){if($('stalkerUrl'))$('stalkerUrl').value=sc.portal;if($('stalkerUser'))$('stalkerUser').value=sc.user||'';if($('stalkerPass'))$('stalkerPass').value=sc.pass||'';if($('login'))$('login').classList.add('hidden');loginStalker();}
+  if(sc&&sc.portal){if($('stalkerUrl'))$('stalkerUrl').value=sc.portal;if($('stalkerUser'))$('stalkerUser').value=sc.user||'';if($('stalkerPass'))$('stalkerPass').value=sc.pass||'';
+    /* v6.8: restore the MAC with the rest of the login. This auto-connect brought back the portal,
+       username and password but left the MAC to whatever this browser happened to hold — so if the
+       device MAC had been lost and regenerated, the app silently reconnected as a DIFFERENT device
+       and the provider's registration no longer matched. The saved login now carries the MAC that
+       actually worked, and it wins here. */
+    const smac=validMac(sc.mac);
+    if(smac){persistStalkerMac(smac);if($('stalkerMac'))$('stalkerMac').value=smac;}
+    if($('login'))$('login').classList.add('hidden');loginStalker();}
 }catch(e){}})();
 /* v18: init per-category player selects after restore() has loaded saved modes.
    v41: extra named players are injected per device — MX Player on Android, Infuse and
