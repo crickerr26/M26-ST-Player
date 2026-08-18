@@ -876,7 +876,7 @@ function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.re
 /* Version scheme restarts here at 5.0 by owner request; the previous 7.x line is retired.
    Bump this on every release that changes anything a user can see — it is the single source for
    the splash screen, the login screen and the version badges, so nothing else needs editing. */
-const APP_VERSION='6.6';
+const APP_VERSION='6.7';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1179,6 +1179,10 @@ async function stalkerProbeToken(portal,ep,mac,ms){
 async function stalkerFindPortal(){
   const st=S.stalker||{};
   if(!st.portal||!st.mac||!stalkerProxyBase())return '';
+  /* v6.7: never port-hunt while rate limited — this is the biggest burst the app can make (up to
+     eight origins x four paths), and it is what turns a short Cloudflare 1015 window into a long
+     one. */
+  if(cooldownLeft(st.portal)>0)return '';
   /* Only ever a login-time search. Once a loader path has answered, the address is known good, and
      a later reach failure is the portal being flaky mid-session — hunting ports then would stall
      playback behind a minute of probes for nothing. */
@@ -1207,6 +1211,32 @@ async function stalkerFindPortal(){
    HTML instead of JSON. Setting a relay URL here points the portal API calls at a copy running
    somewhere else (see relay/ — one-click Render deploy), so they arrive from an ordinary IP
    instead. Left empty this changes nothing: it falls back to the same-origin route as before. */
+/* v6.7: error 1015 is Cloudflare RATE LIMITING, not a firewall and not a challenge — the portal
+   is refusing us because we asked too often. The app was the cause: the loader path that works was
+   only ever remembered in memory, so every login re-walked up to thirteen candidate paths
+   back-to-back, and every retry after a failure did it again. Remember the path that answered, per
+   portal, so a known portal costs ONE request per call instead of thirteen. */
+const STALKER_EP_KEY='m26-stalker-endpoint-v1';
+function savedEndpoint(portal){try{const m=JSON.parse(store.getItem(STALKER_EP_KEY)||'{}');return (m&&m[portal])||''}catch{return''}}
+function saveEndpoint(portal,ep){try{const m=JSON.parse(store.getItem(STALKER_EP_KEY)||'{}');m[portal]=ep;store.setItem(STALKER_EP_KEY,JSON.stringify(m))}catch(e){}}
+/* And once rate limiting HAS been tripped, stop making it worse. Cloudflare's limit counts
+   requests in a window, so hammering Connect during the ban keeps the window full and the ban
+   alive. While the cooldown is running the app never bursts: one probe per attempt, no port
+   search, no candidate walk — enough to notice the moment it lifts, never enough to re-trip it. */
+const STALKER_COOLDOWN_KEY='m26-stalker-cooldown-v1';
+const STALKER_COOLDOWN_MS=300000;
+function cooldownUntil(portal){try{const m=JSON.parse(store.getItem(STALKER_COOLDOWN_KEY)||'{}');return +((m&&m[portal])||0)}catch{return 0}}
+function setCooldown(portal,ms){try{const m=JSON.parse(store.getItem(STALKER_COOLDOWN_KEY)||'{}');m[portal]=Date.now()+ms;store.setItem(STALKER_COOLDOWN_KEY,JSON.stringify(m))}catch(e){}}
+function clearCooldown(portal){try{const m=JSON.parse(store.getItem(STALKER_COOLDOWN_KEY)||'{}');if(m&&m[portal]){delete m[portal];store.setItem(STALKER_COOLDOWN_KEY,JSON.stringify(m))}}catch(e){}}
+function cooldownLeft(portal){return Math.max(0,Math.ceil((cooldownUntil(portal)-Date.now())/1000))}
+/* One probe per attempt is only safe if it is a DIFFERENT probe each time — otherwise a portal
+   whose path we have not learned yet can never be found while the cooldown runs, and the single
+   404 gets reported as "there is no portal here", which is worse than the rate limit. Rotate
+   through the candidates across attempts: still one request per tap, still full coverage. */
+const STALKER_EPCUR_KEY='m26-stalker-epcursor-v1';
+function epCursor(portal){try{const m=JSON.parse(store.getItem(STALKER_EPCUR_KEY)||'{}');return +((m&&m[portal])||0)}catch{return 0}}
+function bumpEpCursor(portal){try{const m=JSON.parse(store.getItem(STALKER_EPCUR_KEY)||'{}');m[portal]=(+(m[portal]||0)+1)%64;store.setItem(STALKER_EPCUR_KEY,JSON.stringify(m))}catch(e){}}
+function cfRateLimited(t){return /error code:\s*1015|\brate limited\b|too many requests/i.test(String(t||''))}
 const STALKER_RELAY_KEY='m26-stalker-relay-url-v1';
 function stalkerRelayBase(){try{const v=($('stalkerRelayUrl')&&$('stalkerRelayUrl').value)||store.getItem(STALKER_RELAY_KEY)||'';return v?normalize(v):''}catch{return''}}
 function stalkerProxyBase(){
@@ -1257,9 +1287,24 @@ async function stalkerRequest(type,action,extra={}){
   if(!PROXY)throw Error('Could not reach the Stalker portal. Check the portal URL.');
   const st=S.stalker||{};
   if(!st.portal||!st.mac)throw Error('Could not reach the Stalker portal. Check the portal URL.');
-  const eps=st.endpoint?[st.endpoint]:stalkerEpCandidates(st.portal);
-  let lastErr=null;
+  /* v6.7: order matters more than exclusion. The remembered path goes first, so a portal we have
+     reached before costs exactly one request; the rest stay behind it so a portal that moves is
+     still found instead of being stuck on a stale path. */
+  const remembered=st.endpoint||savedEndpoint(st.portal);
+  let eps=st.endpoint?[st.endpoint]:stalkerEpCandidates(st.portal);
+  if(remembered)eps=[remembered].concat(eps.filter(e=>e!==remembered));
+  /* Rate limited right now: one probe, never a burst. */
+  const cooling=cooldownLeft(st.portal);
+  if(cooling>0){
+    eps=[remembered||eps[epCursor(st.portal)%eps.length]];
+    if(!remembered)bumpEpCursor(st.portal);
+  }
+  let lastErr=null,first=true;
   for(const ep of eps){
+    /* Space the probes out. Thirteen requests fired back-to-back is what a rate-limiting rule is
+       built to catch; the same thirteen spread over a few seconds is not. */
+    if(!first)await new Promise(r=>setTimeout(r,250));
+    first=false;
     const params=Object.assign({portal:st.portal,ep,mac:st.mac,token:st.token||'',JsHttpRequest:'1-xml',type,action},extra);
     const qs=new URLSearchParams(params);
     try{
@@ -1274,28 +1319,36 @@ async function stalkerRequest(type,action,extra={}){
         let body='';try{body=await r.text()}catch{}
         lastErr=Error('HTTP '+r.status);
         const cf=looksLikeCfBlock(body,r.status),waf=!cf&&looksLikeWafBlock(body);
-        if(cf)lastErr=Error('Blocked by the portal’s Cloudflare protection (HTTP '+r.status+')');
+        const rl=(cf||r.status===429)&&(cfRateLimited(body)||r.status===429);
+        if(rl){
+          setCooldown(st.portal,STALKER_COOLDOWN_MS);
+          lastErr=Error('Rate limited by the portal’s Cloudflare (HTTP '+r.status+')');
+        }
+        else if(cf)lastErr=Error('Blocked by the portal’s Cloudflare protection (HTTP '+r.status+')');
         else if(waf)lastErr=Error('Blocked by a firewall in front of the portal (HTTP '+r.status+')');
         if(body&&body.trim())lastErr.body=plainBody(body,240);
         /* v6.6: STOP on a firewall verdict. Something in front of the portal is refusing this
            client, so the remaining loader paths will be refused identically — walking all of them
            just fires a dozen more MAG-user-agent requests at a host that is already rate-limiting
            or challenging us, which can escalate the block. One refusal is the answer. */
-        if(cf||waf){lastErr.detail=lastErr.body||'';break}
+        if(cf||waf||rl){lastErr.detail=lastErr.body||'';break}
         continue;
       }
       const txt=await r.text();
       if(!txt||!txt.trim()){lastErr=Error('Empty response');continue}
       let data;try{data=JSON.parse(txt)}catch{const cf=looksLikeCfBlock(txt,r.status),waf=!cf&&looksLikeWafBlock(txt);lastErr=Error(cf?'Blocked by the portal’s Cloudflare protection':waf?'Blocked by a firewall in front of the portal':'Invalid response (portal did not return JSON)');lastErr.detail=plainBody(txt,240);if(cf||waf)break;continue}
       st.endpoint=ep;
+      saveEndpoint(st.portal,ep);
+      if(cooling>0)clearCooldown(st.portal);
       return data;
     }catch(e){lastErr=e}
   }
   /* v97: keep the real reason. Collapsing 404 / 502 upstream-unreachable / timeout / non-JSON
      into one generic string made every portal failure look identical and undebuggable — the
      underlying cause now rides along so the login screen can show what actually happened. */
-  if(lastErr&&/Cloudflare|firewall/i.test(lastErr.message||'')){lastErr.detail=lastErr.detail||lastErr.body||'';throw lastErr}
+  if(lastErr&&/Rate limited|Cloudflare|firewall/i.test(lastErr.message||'')){lastErr.detail=lastErr.detail||lastErr.body||'';throw lastErr}
   if(lastErr&&/^HTTP 40[13]$/.test(lastErr.message||''))throw Object.assign(lastErr,{detail:lastErr.body||''});
+  if(cooling>0)throw Object.assign(Error('Rate limited by the portal’s Cloudflare (cooling down)'),{detail:'only one path was checked this attempt — '+(lastErr&&lastErr.message||'no response')});
   throw Object.assign(Error('Could not reach the Stalker portal. Check the portal URL.'),{detail:(lastErr&&lastErr.message)||'no response from any known portal path'});
 }
 async function stalkerHandshake(){
@@ -1746,6 +1799,17 @@ function mapStalkerError(e,mac){
      challenge. Saying that beats sending the user to ask their provider to allowlist an app.
      The portal's own words are quoted too: a real challenge page and a Cloudflare-branded 404 read
      very differently, and only one of them is a firewall problem. */
+  /* v6.7: error 1015 is rate limiting — "too many requests", not "you are not welcome". Telling
+     someone to deploy a relay or go argue with their provider is the wrong instruction entirely:
+     the request count is the cause, it is temporary, and the one thing that makes it worse is
+     retrying. Say that, and say how long. */
+  if(/Rate limited/i.test(m)){
+    const left=cooldownLeft((S.stalker||{}).portal||'');
+    return 'The portal’s Cloudflare is rate limiting this app (error 1015) — too many requests in a short time, not a wrong password and not a permanent block. It clears by itself: wait '
+      +(left>60?('about '+Math.ceil(left/60)+' minutes'):(left>0?(left+' seconds'):'a few minutes'))
+      +' and tap Connect once. Tapping repeatedly keeps the limit alive. This build also remembers the working portal path, so each attempt now costs one request instead of thirteen.'
+      +((e&&e.detail)?' [portal said: '+e.detail+']':'');
+  }
   if(/Cloudflare/i.test(m)){
     const relay=stalkerRelayBase();
     return 'The portal’s Cloudflare protection is refusing this app — not a wrong password.'
