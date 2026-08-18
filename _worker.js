@@ -254,6 +254,16 @@ export default {
       return handleGenericProxy(request);
     }
 
+    /* v6.4: the web app manifest used to declare start_url "./media26.html" — a file this app has
+       never contained. Every home-screen icon installed from it therefore launches a URL that 404s,
+       which is the blank white screen people get when they open the saved app. The manifest now
+       points at index.html, but an icon already sitting on someone's phone keeps the start_url it
+       was installed with, so serve the app at the old path too instead of leaving those installs
+       permanently broken. */
+    if (url.pathname === '/media26.html') {
+      return env.ASSETS.fetch(new Request(new URL('/index.html', url).toString(), request));
+    }
+
     if (!url.pathname.startsWith('/transcoder/')) {
       return env.ASSETS.fetch(request);
     }

@@ -1,6 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
-    { "source": "/stalker-proxy", "destination": "/api/stalker-proxy" }
+    { "source": "/stalker-proxy", "destination": "/api/stalker-proxy" },
+    { "source": "/media26.html", "destination": "/index.html" }
   ]
 }

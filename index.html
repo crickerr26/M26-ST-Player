@@ -567,7 +567,7 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Media26">
 <link rel="apple-touch-icon" href="image_482ee8.png">
-<link rel="icon" type="image/png" sizes="192x192" href="image_482ee8.png">
+<link rel="icon" type="image/png" sizes="180x180" href="apple-touch-icon.png">
 </head>
 <body>
 <div id="splashScreen" class="splash-screen" aria-hidden="true">
@@ -876,7 +876,7 @@ function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.re
 /* Version scheme restarts here at 5.0 by owner request; the previous 7.x line is retired.
    Bump this on every release that changes anything a user can see — it is the single source for
    the splash screen, the login screen and the version badges, so nothing else needs editing. */
-const APP_VERSION='6.3';
+const APP_VERSION='6.4';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -4169,7 +4169,7 @@ restore();renderProfileList();renderAll();warmTranscoder();keepTranscoderWarm();
 <div class="a2hs" id="a2hs">
   <div class="a2hsCard">
     <div class="a2hsRow">
-      <img src="icon-192.png" alt="Media26 icon">
+      <img src="apple-touch-icon.png" alt="Media26 icon">
       <div class="a2hsTxt">
         <strong>Save Media26 to your phone?</strong>
         <span id="a2hsHint">Installs as an app with its own icon on your home screen — opens full screen like a real app.</span>

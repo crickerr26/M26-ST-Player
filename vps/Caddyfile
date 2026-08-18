@@ -48,6 +48,15 @@
 		reverse_proxy relay:8080
 	}
 
+	# Home-screen icons installed before v6.4 launch ./media26.html — a file this app never had,
+	# which is why the saved app opened to a blank page. Serve the player there as well, so those
+	# installs keep working without being reinstalled.
+	handle /media26.html {
+		rewrite * /index.html
+		root * /srv
+		file_server
+	}
+
 	# The player.
 	handle {
 		root * /srv
