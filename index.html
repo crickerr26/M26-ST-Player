@@ -876,7 +876,7 @@ function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.re
 /* Version scheme restarts here at 5.0 by owner request; the previous 7.x line is retired.
    Bump this on every release that changes anything a user can see — it is the single source for
    the splash screen, the login screen and the version badges, so nothing else needs editing. */
-const APP_VERSION='7.0';
+const APP_VERSION='7.1';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -2305,9 +2305,17 @@ function transcodeUrl(u,profile='mobile'){const base=transcoderBase();if(!base)r
    this was tuned against caps at one — so it only opens once the direct routes have failed and
    been torn down. The profile name follows whatever /health advertises, since older transcoder
    builds ship 'fastvod' and no 'live'. */
+/* v7.1: a transcoder answering 503 (a free instance asleep, suspended or gone) still got the long
+   50s cold-start budget on EVERY attempt, which is why a channel now "loads for a long time" before
+   failing. Remember a hard failure for ten minutes and skip that route meanwhile, so the cascade
+   fails fast instead of stalling on a server that is not coming back this minute. */
+const TRANS_DOWN_KEY='m26-transcoder-down-v1';
+function transcoderDown(){try{return Date.now()<+(store.getItem(TRANS_DOWN_KEY)||0)}catch{return false}}
+function markTranscoderDown(){try{store.setItem(TRANS_DOWN_KEY,String(Date.now()+600000))}catch(e){}}
+function clearTranscoderDown(){try{store.removeItem(TRANS_DOWN_KEY)}catch(e){}}
 function liveTranscodeUrl(u){
   try{
-    if(!u||!transcoderBase())return '';
+    if(!u||!transcoderBase()||transcoderDown())return '';
     const have=Array.isArray(S.transProfiles)?S.transProfiles:[];
     const profile=(have.length&&have.indexOf('live')<0&&have.indexOf('fastvod')>=0)?'fastvod':'live';
     return transcodeUrl(u,profile)||'';
@@ -2752,7 +2760,17 @@ async function playItemBasic(x){
      which says nothing about WHICH route failed or why — unactionable for the user and
      undebuggable for me. Record the last real engine error so the dead-end message can quote it. */
   let lastWhy='',exhausted=false;
-  const why=m=>{const c=plans&&(plans[idx]||plans[plans.length-1]);lastWhy=((c&&c.kind)||'?')+': '+m};
+  /* v7.1: keep EVERY candidate's failure, not just the last one. The dead end was reporting only
+     the final route ("transcoder server returned 503") while the three attempts before it — the
+     ones that say whether the stream itself is reachable — were overwritten and lost. */
+  const whyTrail=[];
+  const why=m=>{
+    const c=plans&&(plans[idx]||plans[plans.length-1]);
+    lastWhy=((c&&c.kind)||'?')+': '+m;
+    if(whyTrail[whyTrail.length-1]!==lastWhy)whyTrail.push(lastWhy);
+    if(whyTrail.length>6)whyTrail.shift();
+  };
+  const whyAll=()=>whyTrail.length?whyTrail.join(' · '):lastWhy;
   /* v5.9: OPTIMISTIC START for Movies/Series — a title the browser can play should start with NO
      loading screen. Show the poster on the <video> and begin playback immediately; only reveal the
      spinner if the first frame is genuinely slow (>500ms) or the title can't decode. Fast files
@@ -3006,7 +3024,7 @@ async function playItemBasic(x){
     $('stateTitle').textContent='Couldn’t play this channel here';
     const badPort=streamPortUnreachable(src);
     if(badPort){
-      $('stateText').textContent='This channel\u2019s stream is served on port '+badPort+'. The host this app runs on (Cloudflare) can only make outbound connections on a fixed set of ports, and '+badPort+' is not one of them \u2014 so nothing here can fetch it, however healthy the channel is. Set a Portal relay URL in Stream tools (Render/VPS, no port limit) and streams go through it instead. Or tap VLC below, which connects from your phone directly.'+(lastWhy?' ['+lastWhy+']':'')+' (v'+APP_VERSION+')';
+      $('stateText').textContent='This channel\u2019s stream is served on port '+badPort+'. The host this app runs on (Cloudflare) can only make outbound connections on a fixed set of ports, and '+badPort+' is not one of them \u2014 so nothing here can fetch it, however healthy the channel is. Set a Portal relay URL in Stream tools (Render/VPS, no port limit) and streams go through it instead. Or tap VLC below, which connects from your phone directly.'+(whyAll()?' ['+whyAll()+']':'')+' (v'+APP_VERSION+')';
       $('netStatus').textContent='Stopped';$('miniMeta').textContent='Stopped';
       showExternalOptions();
       return;
@@ -3017,7 +3035,7 @@ async function playItemBasic(x){
       :(rawTs&&!tsOk)
         ? 'This channel is raw MPEG-TS, which this browser can’t decode, and the transcoder didn’t return a playable stream. Tap VLC below to watch it now.'
         : 'Every playback route was tried and none started. Tap a player below to watch it.'
-    )+(lastWhy?' ['+lastWhy+']':'')+' (v'+APP_VERSION+')';
+    )+(whyAll()?' ['+whyAll()+']':'')+' (v'+APP_VERSION+')';
     $('netStatus').textContent='Stopped';$('miniMeta').textContent='Stopped';
     showExternalOptions();
   };
@@ -3085,7 +3103,7 @@ async function playItemBasic(x){
            MKV dead-ended on "This file is MKV" even with a green transcoder. Resolve the URL with our
            OWN fetch first (bounded by the 50s transcoder budget, no player timeout), then re-attach
            with the READY playlist URL so the player loads something that responds instantly. */
-        fetch(p.url,{cache:'no-store'}).then(r=>{if(token!==S.seq)return;if(!r||!r.ok){transErr=r?('server returned '+r.status):'no response';why('transcoder '+transErr);next();return;}attach({kind:'hls',url:(r.url||p.url),label:p.label,_resolved:true});}).catch(e=>{if(token!==S.seq)return;transErr='couldn’t reach server ('+((e&&e.message)||'network')+')';why('transcoder '+transErr);next();});
+        fetch(p.url,{cache:'no-store'}).then(r=>{if(token!==S.seq)return;if(!r||!r.ok){transErr=r?('server returned '+r.status):'no response';why('transcoder '+transErr);if(!r||r.status>=500)markTranscoderDown();next();return;}clearTranscoderDown();attach({kind:'hls',url:(r.url||p.url),label:p.label,_resolved:true});}).catch(e=>{if(token!==S.seq)return;transErr='couldn’t reach server ('+((e&&e.message)||'network')+')';why('transcoder '+transErr);markTranscoderDown();next();});
         return;
       }
       if(p.kind==='mpegts'){
