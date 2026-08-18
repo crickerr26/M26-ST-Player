@@ -133,6 +133,37 @@ function isPrivateHost(hostname) {
   return false;
 }
 
+/* v7.0: an HLS playlist cannot be passed through untouched. Its segment and variant URLs are
+   either relative — and the browser resolves those against THIS proxy URL, producing
+   https://<app>/123.ts, a 404 — or absolute http://, which an https page refuses outright as mixed
+   content. Either way the playlist loads and playback then dies. Rewrite every URL it contains so
+   the whole ladder (variants, segments, keys, init sections) comes back through here too. */
+function rewriteHlsPlaylist(text, playlistUrl, proxyPrefix) {
+  let base;
+  try { base = new URL(playlistUrl); } catch { return text; }
+  const wrap = u => {
+    const t = String(u || '').trim();
+    if (!t || t.startsWith('#')) return u;
+    let abs;
+    try { abs = new URL(t, base).toString(); } catch { return u; }
+    return proxyPrefix + encodeURIComponent(abs);
+  };
+  return text.split('\n').map(line => {
+    const t = line.trim();
+    if (!t) return line;
+    // Tag lines carry their URLs in a URI="..." attribute (EXT-X-KEY, EXT-X-MAP, EXT-X-MEDIA).
+    if (t.startsWith('#')) return line.replace(/URI="([^"]*)"/g, (m, u) => 'URI="' + wrap(u) + '"');
+    return wrap(t);
+  }).join('\n');
+}
+
+/* Cloudflare Workers may only open outbound connections on this fixed set of ports. IPTV streams
+   are routinely published on others (25461, 8000, 1935 ...), and a fetch to one of those fails
+   here no matter how healthy the origin is — which surfaces in the player as a bare
+   manifestLoadError. Name it, because the fix is a relay (see relay/), not the portal. */
+const CF_FETCHABLE_PORTS = new Set([80, 8080, 8880, 2052, 2082, 2086, 2095, 443, 2053, 2083, 2087, 2096, 8443]);
+function targetPort(u) { return u.port ? Number(u.port) : (u.protocol === 'https:' ? 443 : 80); }
+
 async function handleGenericProxy(request) {
   if (request.method === 'OPTIONS') {
     return new Response(null, { status: 204, headers: withCors(new Headers()) });
@@ -163,11 +194,30 @@ async function handleGenericProxy(request) {
   const range = request.headers.get('range');
   if (range) headers.set('Range', range);
 
+  const port = targetPort(target);
+  if (!CF_FETCHABLE_PORTS.has(port)) {
+    return new Response(JSON.stringify({ error: 'port_not_fetchable', port, detail: 'This host cannot open outbound connections on port ' + port + '. Use a relay (see relay/) for streams on this port.' }),
+      { status: 502, headers: withCors(new Headers({ 'content-type': 'application/json', 'x-m26-reason': 'port-' + port })) });
+  }
+
   let upstream;
   try {
     upstream = await fetch(target.toString(), { method: request.method, headers, redirect: 'follow' });
   } catch (e) {
-    return new Response(JSON.stringify({ error: 'upstream_unreachable' }), { status: 502, headers: withCors(new Headers({ 'content-type': 'application/json' })) });
+    return new Response(JSON.stringify({ error: 'upstream_unreachable', detail: String((e && e.message) || e) }), { status: 502, headers: withCors(new Headers({ 'content-type': 'application/json' })) });
+  }
+
+  // Playlists are small text; rewrite them. Everything else streams through untouched.
+  const ctype = upstream.headers.get('content-type') || '';
+  const looksHls = /mpegurl|x-mpegURL/i.test(ctype) || /\.m3u8(\?|$)/i.test(target.pathname + target.search);
+  if (request.method === 'GET' && !range && upstream.ok && looksHls) {
+    const text = await upstream.text();
+    if (/^\s*#EXTM3U/.test(text)) {
+      const proxyPrefix = new URL(request.url).origin + '/proxy?url=';
+      const out = rewriteHlsPlaylist(text, upstream.url || target.toString(), proxyPrefix);
+      return new Response(out, { status: 200, headers: withCors(new Headers({ 'content-type': 'application/vnd.apple.mpegurl' })) });
+    }
+    return new Response(text, { status: upstream.status, headers: withCors(upstream.headers) });
   }
 
   // v7.0: many cheap Xtream/IPTV origins don't implement HTTP Range at all — they ignore the

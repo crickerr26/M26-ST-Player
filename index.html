@@ -876,7 +876,7 @@ function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.re
 /* Version scheme restarts here at 5.0 by owner request; the previous 7.x line is retired.
    Bump this on every release that changes anything a user can see — it is the single source for
    the splash screen, the login screen and the version badges, so nothing else needs editing. */
-const APP_VERSION='6.9';
+const APP_VERSION='7.0';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -2813,7 +2813,18 @@ async function playItemBasic(x){
     const nativePlayable=/\.(mp4|m4v|mov|webm|ogv|ogg)(\?|$)/i.test(direct);
     const rawTsNoMse=!isM3u8&&!tsOk&&!nativePlayable;
     if(!rawTsNoMse)addv(isM3u8?'hls':'native',du);
-    if(!isM3u8){
+    /* v7.0: an .m3u8 channel used to get exactly ONE candidate — hls.js on the proxied playlist —
+       so a single manifestLoadError ended the channel with "every playback route was tried", when
+       in truth only one had been. On iPhone that is the wrong single choice too: Safari's own
+       AVPlayer is the strongest HLS path on that device (hardware decode, its own retry logic) and
+       it was never offered for live at all. Give m3u8 the same ladder the .ts branch has:
+       hls.js, then native HLS, then the same playlist fetched direct (in case the relay is what
+       failed), then the transcoder. */
+    if(isM3u8){
+      addv('native',du);
+      if(du!==direct)addv('hls',direct);
+      addv('hls',liveTranscodeUrl(direct));
+    }else{
       addv('hls',LIVE_HLS+encodeURIComponent(direct));
       addv('hls',liveTranscodeUrl(direct));
       if(rawTsNoMse)addv('native',du);
@@ -2993,6 +3004,13 @@ async function playItemBasic(x){
     const rawTs=!!src&&!/\.m3u8(\?|$)/i.test(src);
     const hasTrans=!!transcoderBase();
     $('stateTitle').textContent='Couldn’t play this channel here';
+    const badPort=streamPortUnreachable(src);
+    if(badPort){
+      $('stateText').textContent='This channel\u2019s stream is served on port '+badPort+'. The host this app runs on (Cloudflare) can only make outbound connections on a fixed set of ports, and '+badPort+' is not one of them \u2014 so nothing here can fetch it, however healthy the channel is. Set a Portal relay URL in Stream tools (Render/VPS, no port limit) and streams go through it instead. Or tap VLC below, which connects from your phone directly.'+(lastWhy?' ['+lastWhy+']':'')+' (v'+APP_VERSION+')';
+      $('netStatus').textContent='Stopped';$('miniMeta').textContent='Stopped';
+      showExternalOptions();
+      return;
+    }
     $('stateText').textContent=(
       (rawTs&&!tsOk&&!hasTrans)
         ? 'This channel is a raw MPEG-TS stream and this browser has no MediaSource to decode one — on iPhone, live TV can only play here as HLS. Set a transcoder in Stream Tools to convert it, or tap VLC below. The channel itself is fine.'
@@ -3088,7 +3106,15 @@ async function playItemBasic(x){
            connection can sustain at start; the quality menu can then pin a level manually. */
         S.hls=new Hls({enableWorker:true,lowLatencyMode:false,liveSyncDurationCount:3,startFragPrefetch:true,maxBufferLength:30,startLevel:-1,abrEwmaDefaultEstimate:mobile()?1200000:4000000});
         S.hls.loadSource(p.url);S.hls.attachMedia(v);
-        S.hls.on(Hls.Events.ERROR,(e,d)=>{if(token!==S.seq||!d||!d.fatal)return;why(String((d&&(d.details||d.type))||'fatal error'));startedB?reconnect():next()});
+        S.hls.on(Hls.Events.ERROR,(e,d)=>{if(token!==S.seq||!d||!d.fatal)return;
+          /* v7.0: "manifestLoadError" alone does not say WHICH url failed or with what status —
+             the two things that separate "the relay can't reach this stream" from "the portal
+             refused the link". Both now ride along. */
+          const st=(d&&d.response&&(d.response.code||d.response.status))||'';
+          const u=String((d&&d.url)||p.url||'');
+          let where='';try{const q=new URL(u);where=q.searchParams.get('url')?new URL(q.searchParams.get('url')).host:q.host}catch(e2){}
+          why(String((d&&(d.details||d.type))||'fatal error')+(st?' HTTP '+st:'')+(where?' @ '+where:''));
+          startedB?reconnect():next()});
         /* v69: quality menu — populate from the real variant list, honour a saved preference,
            and keep the button label in sync as ABR/levels change. */
         S.hls.on(Hls.Events.MANIFEST_PARSED,()=>{if(token!==S.seq)return;applySavedQuality();refreshQualityUI();});
@@ -3144,6 +3170,21 @@ async function playItemBasic(x){
     S.timer=setTimeout(beat,1000);
   };
   clearTimeout(S.timer);S.timer=setTimeout(beat,1000);
+}
+/* v7.0: Cloudflare Workers may only open outbound connections on a fixed set of ports. IPTV
+   streams are routinely served on others (25461, 8000, 1935 ...), so when this app is served BY a
+   Worker, its /proxy physically cannot fetch those streams however healthy the origin is — the
+   player just reports manifestLoadError. Detect it so the dead end can say which port and what to
+   do, instead of blaming the channel. A configured relay has no such limit, which is the fix. */
+const CF_FETCHABLE_PORTS=new Set([80,8080,8880,2052,2082,2086,2095,443,2053,2083,2087,2096,8443]);
+function streamPortUnreachable(u){
+  try{
+    if(stalkerRelayBase())return 0;
+    if(!_hasWorkerBackend())return 0;
+    const x=new URL(u);
+    const port=x.port?+x.port:(x.protocol==='https:'?443:80);
+    return CF_FETCHABLE_PORTS.has(port)?0:port;
+  }catch(e){return 0}
 }
 function nativeHls(video){return !!video.canPlayType('application/vnd.apple.mpegurl')||!!video.canPlayType('application/x-mpegURL')}
 function forceMobileSmoothLevel(hls){

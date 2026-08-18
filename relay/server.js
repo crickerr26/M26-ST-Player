@@ -74,6 +74,29 @@ function isPrivateHost(hostname) {
 
    Unlike /stalker-proxy this cannot be restricted to a fixed set of paths — stream URLs are
    whatever the portal hands back — so the guard is refusing private/loopback/metadata targets. */
+/* v7.0: same playlist rewriting the Worker build does — an HLS playlist passed through untouched
+   has segment URLs that either resolve against the proxy URL (404) or stay plain http:// on an
+   https page (blocked as mixed content). Rewrite them so the whole ladder comes back through here.
+   Unlike the Worker, this build has no outbound port restrictions, which is exactly why streams on
+   an unusual port need it. */
+function rewriteHlsPlaylist(text, playlistUrl, proxyPrefix) {
+  let base;
+  try { base = new URL(playlistUrl); } catch { return text; }
+  const wrap = u => {
+    const t = String(u || '').trim();
+    if (!t || t.startsWith('#')) return u;
+    let abs;
+    try { abs = new URL(t, base).toString(); } catch { return u; }
+    return proxyPrefix + encodeURIComponent(abs);
+  };
+  return text.split('\n').map(line => {
+    const t = line.trim();
+    if (!t) return line;
+    if (t.startsWith('#')) return line.replace(/URI="([^"]*)"/g, (m, u) => 'URI="' + wrap(u) + '"');
+    return wrap(t);
+  }).join('\n');
+}
+
 async function handleStreamProxy(req, res, url) {
   if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, 'Method not allowed');
   const p = url.searchParams;
@@ -94,6 +117,19 @@ async function handleStreamProxy(req, res, url) {
     upstream = await fetch(target.toString(), { method: req.method, headers, redirect: 'follow' });
   } catch (e) {
     return send(res, 502, JSON.stringify({ error: 'upstream_unreachable', detail: String((e && e.message) || e) }), { 'content-type': 'application/json' });
+  }
+
+  const ctype = upstream.headers.get('content-type') || '';
+  const looksHls = /mpegurl|x-mpegURL/i.test(ctype) || /\.m3u8(\?|$)/i.test(target.pathname + target.search);
+  if (req.method === 'GET' && !range && upstream.ok && looksHls) {
+    const text = await upstream.text();
+    if (/^\s*#EXTM3U/.test(text)) {
+      const host = req.headers.host || ('localhost:' + PORT);
+      const scheme = (req.headers['x-forwarded-proto'] || 'http').split(',')[0];
+      const body = rewriteHlsPlaylist(text, upstream.url || target.toString(), scheme + '://' + host + '/proxy?url=');
+      return send(res, 200, body, { 'content-type': 'application/vnd.apple.mpegurl' });
+    }
+    return send(res, upstream.status, text, { 'content-type': ctype || 'text/plain' });
   }
 
   const out = {};
