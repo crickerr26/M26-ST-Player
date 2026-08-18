@@ -1009,6 +1009,12 @@ function proxyBase(){
   return PROXY;
 }
 function proxyUrl(u){return proxyBase()+encodeURIComponent(u)}
+function stalkerMediaProxyUrl(u){
+  const st=S.stalker||{};
+  const base=proxyUrl(u);
+  if(S.provider!=='stalker'||!st.portal||!st.mac)return base;
+  return base+'&portal='+encodeURIComponent(st.portal)+'&mac='+encodeURIComponent(st.mac)+'&token='+encodeURIComponent(st.token||'');
+}
 function accountUrl(){return `${S.url}/player_api.php?username=${encodeURIComponent(S.user)}&password=${encodeURIComponent(S.pass)}`}
 function apiUrl(action,extra=''){return `${accountUrl()}&action=${action}${extra}`}
 /* v24: multi-proxy fallback chain. The old code depended on ONE worker proxy —
@@ -1600,7 +1606,12 @@ async function resolveStalkerLink(x){
   }
   if(lastErr)throw lastErr;
   const raw=(d&&d.js&&(d.js.cmd||d.js.url))||'';
-  if(!raw&&d&&d.js&&d.js.error){
+  if(!raw&&(t==='vod'||t==='series')&&d&&d.js&&/nothing_to_play/i.test(String(d.js.error||''))){
+    const retryParams=Object.assign({},linkParams,{download:'1'});
+    d=await stalkerRequest(t,'create_link',retryParams);
+  }
+  const raw2=(d&&d.js&&(d.js.cmd||d.js.url))||raw;
+  if(!raw2&&d&&d.js&&d.js.error){
     const detail=plainBody(d.text||'',220);
     throw Error('The portal could not create a playable link for this title: '+d.js.error+(detail?' ('+detail+')':''));
   }
@@ -1612,7 +1623,7 @@ async function resolveStalkerLink(x){
      connection was. Strip ANY single leading token immediately followed by whitespace and then
      http(s):// — covers every prefix variant without hardcoding a list, and does nothing to a
      cmd that's already a bare URL (no match, string passes through unchanged). */
-  const clean=String(raw).replace(/^\S+\s+(?=https?:\/\/)/i,'').trim();
+  const clean=String(raw2).replace(/^\S+\s+(?=https?:\/\/)/i,'').trim();
   if(!clean)throw Error('The portal did not return a playable stream URL for this title.');
   /* v5.1: channels are stored with a placeholder cmd pointing at localhost ("auto
      http://localhost/ch/51878") and create_link is meant to rewrite it to a reachable host. Some
@@ -2526,10 +2537,13 @@ async function playItemBasic(x){
     if(typeOf(x)==='radio'){
       plans=[];
       if(direct)plans.push({kind:'native',url:direct,label:'Radio'});
-      if(direct&&!/^blob:/i.test(direct))plans.push({kind:'native',url:proxyUrl(direct),label:'Radio Relay'});
+      if(direct&&!/^blob:/i.test(direct))plans.push({kind:'native',url:stalkerMediaProxyUrl(direct),label:'Radio Relay'});
       if(!plans.length)plans=[{kind:'native',url:direct,label:'Radio'}];
     }else{
-    const du=wrap(direct);
+    /* Stalker create_link URLs are browser-hostile even on localhost: they have no CORS headers,
+       HLS playlists contain relative segments, and some portals bind the link to the relay IP
+       that created it. Built-in playback must consume them through the same relay /proxy. */
+    const du=direct?stalkerMediaProxyUrl(direct):'';
     const isM3u8=/\.m3u8(\?|$)/i.test(direct);
     plans=[];
     /* v94: mpegts.js can only ever parse raw MPEG-TS/FLV, never an HLS .m3u8 playlist — offering
@@ -2563,7 +2577,7 @@ async function playItemBasic(x){
     /* Stalker VOD/Series: same idea as the live branch above — x.direct_source is the
        freshly resolved create_link URL, not an Xtream path template. */
     const direct=String(x.direct_source||'').trim();
-    const du=wrap(direct);
+    const du=direct?stalkerMediaProxyUrl(direct):'';
     const isM3u8=/\.m3u8(\?|$)/i.test(direct);
     const hlsUsable=(window.Hls&&Hls.isSupported())||nativeHls(v);
     plans=[];
@@ -2874,15 +2888,15 @@ function plan(x){
   if(stalkerUrl){
     if(type==='radio'){
       add('native','Radio',stalkerUrl);
-      add('native','Radio Relay',proxyUrl(stalkerUrl));
+      add('native','Radio Relay',stalkerMediaProxyUrl(stalkerUrl));
       return p;
     }
     const tsOk=!!(window.mpegts&&mpegts.isSupported());
     const isHls=/\.m3u8(\?|$)/i.test(stalkerUrl);
     /* An http stream on an https page is mixed content and the browser blocks it outright, so in
        that case the relay is the only way through and a "direct" attempt is a guaranteed stall. */
-    const direct=blocked(stalkerUrl)?'':stalkerUrl;
-    const relayed=proxyUrl(stalkerUrl);
+    const direct='';
+    const relayed=stalkerMediaProxyUrl(stalkerUrl);
     if(isHls){
       if(direct){add('native','Direct',direct);add('hls','Direct HLS',direct);}
       add('native','Relay',relayed);

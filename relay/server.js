@@ -47,6 +47,33 @@ function send(res, status, body, headers) {
   res.writeHead(status, cors(headers || { 'content-type': 'text/plain; charset=utf-8' }));
   res.end(body);
 }
+function proxySelf(req, target) {
+  const proto = req.headers['x-forwarded-proto'] || 'http';
+  const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost';
+  const here = new URL(req.url, `${proto}://${host}`);
+  const extra = ['portal', 'mac', 'token'].map(k => {
+    const v = here.searchParams.get(k);
+    return v ? `&${k}=${encodeURIComponent(v)}` : '';
+  }).join('');
+  return `${proto}://${host}/proxy?url=${encodeURIComponent(target)}${extra}`;
+}
+function isPlaylist(target, headers) {
+  const ct = String(headers.get('content-type') || '').toLowerCase();
+  return /mpegurl|m3u8/.test(ct) || /\.m3u8(?:$|[?#])/i.test(target.pathname);
+}
+function rewritePlaylist(text, baseUrl, mkProxy) {
+  const absolutize = (raw) => {
+    const v = String(raw || '').trim();
+    if (!v || /^(data|blob|javascript):/i.test(v)) return raw;
+    try { return mkProxy(new URL(v, baseUrl).toString()); } catch { return raw; }
+  };
+  return String(text || '').split(/\r?\n/).map((line) => {
+    const trimmed = line.trim();
+    if (!trimmed) return line;
+    if (trimmed[0] !== '#') return absolutize(trimmed);
+    return line.replace(/URI="([^"]+)"/g, (_, u) => `URI="${absolutize(u)}"`);
+  }).join('\n');
+}
 function serveStatic(req, res, url) {
   if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, 'Method not allowed');
   const requested = url.pathname === '/' ? '/index.html' : decodeURIComponent(url.pathname);
@@ -100,6 +127,21 @@ async function handleStreamProxy(req, res, url) {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
     'Accept': '*/*'
   };
+  const mac = p.get('mac') || '';
+  const portalRaw = p.get('portal') || '';
+  if (mac || portalRaw) {
+    let portal;
+    try { portal = new URL(portalRaw); } catch { return send(res, 400, 'Invalid portal URL'); }
+    if (portal.protocol !== 'http:' && portal.protocol !== 'https:') return send(res, 400, 'Invalid portal URL');
+    if (isPrivateHost(portal.hostname)) return send(res, 400, 'Refused');
+    if (!MAC_RE.test(mac)) return send(res, 400, 'Invalid MAC');
+    headers['User-Agent'] = STB_UA;
+    headers['Cookie'] = `mac=${mac}; stb_lang=en; timezone=Europe/London`;
+    headers['X-User-Agent'] = 'Model: MAG250; Link: WiFi';
+    headers['Referer'] = portal.origin + '/c/';
+    const token = p.get('token') || '';
+    if (token) headers['Authorization'] = 'Bearer ' + token;
+  }
   const range = req.headers['range'];
   if (range) headers['Range'] = range;
 
@@ -116,6 +158,19 @@ async function handleStreamProxy(req, res, url) {
     if (v) out[k] = v;
   }
   if (p.get('dl') === '1') out['content-disposition'] = `attachment; filename="${String(p.get('name') || 'download').replace(/"/g, '')}"`;
+
+  if (req.method === 'GET' && upstream.body && isPlaylist(target, upstream.headers)) {
+    const text = await upstream.text();
+    if (!/^\s*#EXTM3U/i.test(text)) {
+      delete out['content-length'];
+      return send(res, upstream.status, text, out);
+    }
+    const body = rewritePlaylist(text, target.toString(), u => proxySelf(req, u));
+    delete out['content-length'];
+    out['content-type'] = 'application/vnd.apple.mpegurl; charset=utf-8';
+    out['cache-control'] = 'no-store';
+    return send(res, upstream.status, body, out);
+  }
 
   /* Many cheap IPTV origins ignore Range entirely and answer 200 with the whole file. A <video>
      that asked for a range and gets an unranged 200 treats it as a new resource and snaps back to

@@ -23,6 +23,31 @@ function rewriteLocation(location, requestUrl) {
   if (location.startsWith('/')) return `${current.origin}/transcoder${location}`;
   return location;
 }
+function proxySelf(requestUrl, target) {
+  const current = new URL(requestUrl);
+  const extra = ['portal', 'mac', 'token'].map(k => {
+    const v = current.searchParams.get(k);
+    return v ? `&${k}=${encodeURIComponent(v)}` : '';
+  }).join('');
+  return `${current.origin}/proxy?url=${encodeURIComponent(target)}${extra}`;
+}
+function isPlaylist(target, headers) {
+  const ct = String(headers.get('content-type') || '').toLowerCase();
+  return /mpegurl|m3u8/.test(ct) || /\.m3u8(?:$|[?#])/i.test(target.pathname);
+}
+function rewritePlaylist(text, baseUrl, mkProxy) {
+  const absolutize = (raw) => {
+    const v = String(raw || '').trim();
+    if (!v || /^(data|blob|javascript):/i.test(v)) return raw;
+    try { return mkProxy(new URL(v, baseUrl).toString()); } catch { return raw; }
+  };
+  return String(text || '').split(/\r?\n/).map((line) => {
+    const trimmed = line.trim();
+    if (!trimmed) return line;
+    if (trimmed[0] !== '#') return absolutize(trimmed);
+    return line.replace(/URI="([^"]+)"/g, (_, u) => `URI="${absolutize(u)}"`);
+  }).join('\n');
+}
 
 /* Stalker/MAG/Ministra portal proxy. Browsers can't send the MAC-address cookie or the MAG
    set-top-box User-Agent these portals require to respond, and most send no CORS headers at
@@ -139,6 +164,31 @@ async function handleGenericProxy(request) {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
     'Accept': '*/*'
   });
+  const mac = params.get('mac') || '';
+  const portalRaw = params.get('portal') || '';
+  if (mac || portalRaw) {
+    let portal;
+    try {
+      portal = new URL(portalRaw);
+    } catch {
+      return new Response('Invalid portal URL', { status: 400, headers: withCors(new Headers()) });
+    }
+    if (portal.protocol !== 'http:' && portal.protocol !== 'https:') {
+      return new Response('Invalid portal URL', { status: 400, headers: withCors(new Headers()) });
+    }
+    if (isPrivateHost(portal.hostname)) {
+      return new Response('Refused', { status: 400, headers: withCors(new Headers()) });
+    }
+    if (!/^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$/.test(mac)) {
+      return new Response('Invalid MAC', { status: 400, headers: withCors(new Headers()) });
+    }
+    headers.set('User-Agent', STALKER_UA);
+    headers.set('Cookie', `mac=${mac}; stb_lang=en; timezone=Europe/London`);
+    headers.set('X-User-Agent', 'Model: MAG250; Link: WiFi');
+    headers.set('Referer', portal.origin + '/c/');
+    const token = params.get('token') || '';
+    if (token) headers.set('Authorization', 'Bearer ' + token);
+  }
   const range = request.headers.get('range');
   if (range) headers.set('Range', range);
 
@@ -147,6 +197,25 @@ async function handleGenericProxy(request) {
     upstream = await fetch(target.toString(), { method: request.method, headers, redirect: 'follow' });
   } catch (e) {
     return new Response(JSON.stringify({ error: 'upstream_unreachable' }), { status: 502, headers: withCors(new Headers({ 'content-type': 'application/json' })) });
+  }
+
+  if (request.method === 'GET' && upstream.body && isPlaylist(target, upstream.headers)) {
+    const text = await upstream.text();
+    if (!/^\s*#EXTM3U/i.test(text)) {
+      const respHeaders = withCors(upstream.headers);
+      respHeaders.delete('content-length');
+      return new Response(text, { status: upstream.status, statusText: upstream.statusText, headers: respHeaders });
+    }
+    const body = rewritePlaylist(text, target.toString(), u => proxySelf(request.url, u));
+    const respHeaders = withCors(upstream.headers);
+    respHeaders.delete('content-length');
+    respHeaders.set('content-type', 'application/vnd.apple.mpegurl; charset=utf-8');
+    respHeaders.set('cache-control', 'no-store');
+    if (params.get('dl') === '1') {
+      const name = (params.get('name') || 'download').replace(/"/g, '');
+      respHeaders.set('content-disposition', `attachment; filename="${name}"`);
+    }
+    return new Response(body, { status: upstream.status, statusText: upstream.statusText, headers: respHeaders });
   }
 
   // v7.0: many cheap Xtream/IPTV origins don't implement HTTP Range at all — they ignore the
