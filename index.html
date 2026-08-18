@@ -876,7 +876,7 @@ function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.re
 /* Version scheme restarts here at 5.0 by owner request; the previous 7.x line is retired.
    Bump this on every release that changes anything a user can see — it is the single source for
    the splash screen, the login screen and the version badges, so nothing else needs editing. */
-const APP_VERSION='7.2';
+const APP_VERSION='7.3';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1076,6 +1076,16 @@ function logoOf(x){return x.stream_icon||x.cover||x.movie_image||x.info?.movie_i
 function list(){return S.tab==='live'?S.live:S.tab==='vod'?S.vod:S.tab==='series'?S.series:S.radio}
 function cats(){return S.tab==='live'?S.liveCats:S.tab==='vod'?S.vodCats:S.tab==='series'?S.seriesCats:S.radioCats}
 function countCat(cat){if(!cat)return list().length;return list().filter(x=>String(x.category_id||'')===String(cat)).length}
+/* v7.3: on a Stalker portal the up-front sweep is capped (a 100k-title library is thousands of
+   pages), so a category that has not been opened yet genuinely holds no items HERE — but printing
+   "0 titles" against 142 categories reads as "the catalogue failed to load". Show a dash until the
+   category has actually been fetched; the count appears once it has. */
+function catCountLabel(cat){
+  const n=countCat(cat);
+  if(n||S.provider!=='stalker')return n.toLocaleString();
+  const loaded=S.catLoaded&&S.catLoaded[S.tab+':'+String(cat)];
+  return loaded?'0':'—';
+}
 function restore(){try{S.favs=new Set(JSON.parse(store.getItem(FAV)||'[]'))}catch{}try{S.favCats=new Set(JSON.parse(store.getItem(FAVCAT)||'[]'))}catch{}try{S.orders=Object.assign({live:[],vod:[],series:[],radio:[]},JSON.parse(store.getItem(ORDER)||'{}'))}catch{}try{S.recent=JSON.parse(store.getItem(RECENT)||'[]')}catch{}try{const qs=new URLSearchParams(location.search),q=qs.get('transcoder')||'',qt=qs.get('transcoderToken')||'';let saved=q?normalize(q):(store.getItem(TRANSCODER_KEY)||DEFAULT_TRANSCODER);/* v6.2: migrate the old/outdated transcoder hosts to the current working one so MKV plays without the user having to re-paste a URL */if(/smarter-iptv-transcoder(-[a-z0-9]+)?\.onrender\.com/i.test(saved))saved=DEFAULT_TRANSCODER;if(saved){$('transcoderUrl').value=saved;store.setItem(TRANSCODER_KEY,saved)}const tok=qt||store.getItem(TRANSCODER_TOKEN_KEY)||'';if(tok){$('transcoderToken').value=tok;store.setItem(TRANSCODER_TOKEN_KEY,tok)}try{const rl=store.getItem(STALKER_RELAY_KEY)||'';if(rl&&$('stalkerRelayUrl'))$('stalkerRelayUrl').value=rl}catch(e){}}catch{}try{S.playerModes=Object.assign({live:'auto',vod:'auto',series:'auto',radio:'auto'},JSON.parse(store.getItem(PLAYER_MODE_KEY)||'{}'))}catch{}
 /* v7.3 (owner request): the built-in player is the priority for everything now — a Movies/
    Series "Always use VLC/Infuse/..." choice saved from before this change would otherwise keep
@@ -2074,7 +2084,7 @@ function renderCatPage(){
     const isF=S.favCats.has(catFavKey(c));
     const cnt=countCat(c.category_id);
     const initial=esc((name.trim()[0]||'#').toUpperCase());
-    html+=`<button class="cp-cat ${String(S.cat)===String(c.category_id)?'active':''}" data-cat="${esc(c.category_id)}"><span class="cp-cbadge">${initial}</span><span class="cp-cn"><b>${esc(name)}</b><small>${cnt.toLocaleString()} ${esc(meta.unit)}</small></span><span class="cp-count">${cnt.toLocaleString()}</span><span class="cp-star ${isF?'on':''}" data-favcat="${esc(c.category_id)}" role="button" aria-label="Favorite category">★</span><span class="cp-chev">›</span></button>`;
+    html+=`<button class="cp-cat ${String(S.cat)===String(c.category_id)?'active':''}" data-cat="${esc(c.category_id)}"><span class="cp-cbadge">${initial}</span><span class="cp-cn"><b>${esc(name)}</b><small>${cnt.toLocaleString()} ${esc(meta.unit)}</small></span><span class="cp-count">${(cnt||S.provider!=='stalker'||(S.catLoaded&&S.catLoaded[S.tab+':'+String(c.category_id)]))?cnt.toLocaleString():'—'}</span><span class="cp-star ${isF?'on':''}" data-favcat="${esc(c.category_id)}" role="button" aria-label="Favorite category">★</span><span class="cp-chev">›</span></button>`;
     shown++;
   }
   /* v5.7: a search here used to match category NAMES only, so looking for a title on the Movies
@@ -2206,7 +2216,7 @@ function renderCats(){
   for(const c of cs){
     const isF=S.favCats.has(catFavKey(c));
     /* Same "don't show 0 for an unopened category" fix as renderCatPage. */
-    rows.push(`<button class="cat ${String(S.cat)===String(c.category_id)?'active':''}" data-cat="${esc(c.category_id)}"><span class="catStar ${isF?'on':''}" data-favcat="${esc(c.category_id)}" role="button" aria-label="Favorite category">${isF?'★':'☆'}</span><span class="catName">${esc(c.category_name||'Other')}</span><span class="catCount">${countCat(c.category_id)}</span></button>`);
+    rows.push(`<button class="cat ${String(S.cat)===String(c.category_id)?'active':''}" data-cat="${esc(c.category_id)}"><span class="catStar ${isF?'on':''}" data-favcat="${esc(c.category_id)}" role="button" aria-label="Favorite category">${isF?'★':'☆'}</span><span class="catName">${esc(c.category_name||'Other')}</span><span class="catCount">${catCountLabel(c.category_id)}</span></button>`);
   }
   $('cats').innerHTML=rows.join('');
 }
@@ -3006,6 +3016,7 @@ async function playItemBasic(x){
       $('stateText').textContent='The stream host refused this link (HTTP 403) — it is up, it just will not serve it to us. A Stalker link is tied to the address that requested it, and this app is served from Cloudflare, which does not use one fixed address, so the link is created from one and played from another. Set a Portal relay URL in Stream tools (one host, one address, and it also sends the set-top-box identity) — or tap VLC below, which connects straight from your phone.'+(whyAll()?' ['+whyAll()+']':'')+' (v'+APP_VERSION+')';
       $('netStatus').textContent='Stopped';$('miniMeta').textContent='Stopped';
       showExternalOptions();
+      appendStreamProbe(src);
       return;
     }
     $('stateText').textContent=(unplayable
@@ -3014,6 +3025,7 @@ async function playItemBasic(x){
     }
     $('netStatus').textContent='Stopped';$('miniMeta').textContent='Stopped';
     showExternalOptions();
+    appendStreamProbe(src);
   };
   /* v5.8: instead of pointing at the per-row buttons, show the external players that CAN open this
      stream right below the message — no overlap, one tap. VLC/KM on iOS, VLC/MX/ExoPlayer on
@@ -3047,6 +3059,7 @@ async function playItemBasic(x){
       $('stateText').textContent='This channel\u2019s stream is served on port '+badPort+'. The host this app runs on (Cloudflare) can only make outbound connections on a fixed set of ports, and '+badPort+' is not one of them \u2014 so nothing here can fetch it, however healthy the channel is. Set a Portal relay URL in Stream tools (Render/VPS, no port limit) and streams go through it instead. Or tap VLC below, which connects from your phone directly.'+(whyAll()?' ['+whyAll()+']':'')+' (v'+APP_VERSION+')';
       $('netStatus').textContent='Stopped';$('miniMeta').textContent='Stopped';
       showExternalOptions();
+      appendStreamProbe(src);
       return;
     }
     $('stateText').textContent=(
@@ -3058,6 +3071,7 @@ async function playItemBasic(x){
     )+(whyAll()?' ['+whyAll()+']':'')+' (v'+APP_VERSION+')';
     $('netStatus').textContent='Stopped';$('miniMeta').textContent='Stopped';
     showExternalOptions();
+    appendStreamProbe(src);
   };
   const dropEngines=()=>{if(S.hls){try{S.hls.destroy()}catch(e){}S.hls=null}if(S.ts){try{S.ts.destroy()}catch(e){}S.ts=null}};
   const next=()=>{
@@ -3223,6 +3237,24 @@ function streamPortUnreachable(u){
     const port=x.port?+x.port:(x.protocol==='https:'?443:80);
     return CF_FETCHABLE_PORTS.has(port)?0:port;
   }catch(e){return 0}
+}
+/* v7.3: hls.js reports a status and nothing else, so a 403 from a stream host is indistinguishable
+   from any other 403 — expired token, IP-bound link, connection limit, a Cloudflare page in front.
+   The body says which, and reading it is what cracked the portal side of this. On failure, fetch
+   the same stream URL directly and show what the origin actually replied. */
+async function probeStreamFailure(url){
+  if(!url)return '';
+  try{
+    const r=await fetchWithTimeout(proxyUrl(url),12000);
+    let body='';try{body=await r.text()}catch(e){}
+    const t=plainBody(body,180);
+    return 'origin said HTTP '+r.status+(t?': '+t:' (empty body)');
+  }catch(e){return 'origin probe failed ('+((e&&e.message)||e)+')'}
+}
+function appendStreamProbe(url){
+  const el=$('stateText');if(!el)return;
+  const base=el.textContent;
+  probeStreamFailure(url).then(msg=>{if(msg&&$('stateText')&&$('stateText').textContent===base)$('stateText').textContent=base+' — '+msg;});
 }
 function nativeHls(video){return !!video.canPlayType('application/vnd.apple.mpegurl')||!!video.canPlayType('application/x-mpegURL')}
 function forceMobileSmoothLevel(hls){
