@@ -876,7 +876,7 @@ function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.re
 /* Version scheme restarts here at 5.0 by owner request; the previous 7.x line is retired.
    Bump this on every release that changes anything a user can see — it is the single source for
    the splash screen, the login screen and the version badges, so nothing else needs editing. */
-const APP_VERSION='6.4';
+const APP_VERSION='6.5';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -2113,6 +2113,23 @@ function proxiedMediaUrl(u){return proxyUrl(u)}
 function transcoderBase(){try{return normalize($('transcoderUrl')?.value||store.getItem(TRANSCODER_KEY)||'')}catch{return''}}
 function transcoderToken(){try{return ($('transcoderToken')?.value||store.getItem(TRANSCODER_TOKEN_KEY)||'').trim()}catch{return''}}
 function transcodeUrl(u,profile='mobile'){const base=transcoderBase();if(!base)return'';const token=transcoderToken();return `${base}/hls?profile=${encodeURIComponent(profile)}${token?'&token='+encodeURIComponent(token):''}&url=${encodeURIComponent(u)}`}
+/* v6.5: the transcoder's HLS output is the ONLY in-browser route for a live channel that arrives
+   as raw MPEG-TS on a device with no MediaSource — which is every iPhone, where Safari exposes
+   ManagedMediaSource only, so mpegts.js (it gates on window.MediaSource) can never run and neither
+   <video> nor hls.js can read a continuous .ts. That is the "plays in VLC, dead in the built-in
+   player" case: VLC gets the same URL and decodes TS natively, the browser simply cannot.
+   It stays LAST in every live cascade — it is a second connection to the origin, and the account
+   this was tuned against caps at one — so it only opens once the direct routes have failed and
+   been torn down. The profile name follows whatever /health advertises, since older transcoder
+   builds ship 'fastvod' and no 'live'. */
+function liveTranscodeUrl(u){
+  try{
+    if(!u||!transcoderBase())return '';
+    const have=Array.isArray(S.transProfiles)?S.transProfiles:[];
+    const profile=(have.length&&have.indexOf('live')<0&&have.indexOf('fastvod')>=0)?'fastvod':'live';
+    return transcodeUrl(u,profile)||'';
+  }catch(e){return ''}
+}
 /* v55: warm up the transcoder. It runs on a free host that goes to sleep after inactivity and
    takes 30-60s to cold-start on the next request — that cold start was the big "movies/series
    take too long to open" delay, because MKV/HEVC titles (which browsers can't decode) MUST go
@@ -2136,7 +2153,9 @@ function keepTranscoderWarm(){
      (S.transFast). We use that so a title only waits on the transcoder when it's a CONFIRMED working
      one — otherwise MKV gives its verdict immediately instead of hanging on a dead/old server. */
   const ping=()=>{const base=transcoderBase();if(!base||document.visibilityState==='hidden')return;_lastWarm=Date.now();
-    try{fetch(base.replace(/\/+$/,'')+'/health',{cache:'no-store'}).then(r=>r&&r.ok?r.json():null).then(d=>{S.transFast=!!(d&&Array.isArray(d.profiles)&&d.profiles.indexOf('fastvod')>=0)}).catch(()=>{S.transFast=false})}catch(e){S.transFast=false}};
+    /* v6.5: keep the whole advertised profile list, not just the fastvod flag — the live cascade
+       now needs to know whether this transcoder build offers a 'live' profile before asking for one. */
+    try{fetch(base.replace(/\/+$/,'')+'/health',{cache:'no-store'}).then(r=>r&&r.ok?r.json():null).then(d=>{const pr=(d&&Array.isArray(d.profiles))?d.profiles:null;S.transProfiles=pr||[];S.transFast=!!(pr&&pr.indexOf('fastvod')>=0)}).catch(()=>{S.transFast=false})}catch(e){S.transFast=false}};
   ping();
   _warmTimer=setInterval(ping,240000);
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')ping();});
@@ -2546,6 +2565,11 @@ async function playItemBasic(x){
   $('stateText').textContent=nameOf(x);
   $('netStatus').textContent='Media26 Player';$('miniMeta').textContent='Loading';
   let idx=0,startedB=false,transErr='';
+  /* v6.5: every route failing used to end on "This channel did not load. Try another channel.",
+     which says nothing about WHICH route failed or why — unactionable for the user and
+     undebuggable for me. Record the last real engine error so the dead-end message can quote it. */
+  let lastWhy='',exhausted=false;
+  const why=m=>{const c=plans&&(plans[idx]||plans[plans.length-1]);lastWhy=((c&&c.kind)||'?')+': '+m};
   /* v5.9: OPTIMISTIC START for Movies/Series — a title the browser can play should start with NO
      loading screen. Show the poster on the <video> and begin playback immediately; only reveal the
      spinner if the first frame is genuinely slow (>500ms) or the title can't decode. Fast files
@@ -2589,9 +2613,23 @@ async function playItemBasic(x){
        "[TransmuxingController] Non MPEG-TS/FLV, Unsupported media type!"), and the channel gave
        up instead of cleanly falling through to hls.js. Only offer mpegts when the source genuinely
        isn't m3u8. */
-    if(tsOk&&!isM3u8)plans.push({kind:'mpegts',url:du});
-    plans.push({kind:isM3u8?'hls':'native',url:du});
-    if(!isM3u8)plans.push({kind:'hls',url:LIVE_HLS+encodeURIComponent(direct)});
+    const addv=(kind,url)=>{if(url&&!plans.some(p=>p.kind===kind&&p.url===url))plans.push({kind,url})};
+    if(tsOk&&!isM3u8)addv('mpegts',du);
+    /* v6.5: a raw .ts channel on a device with NO MediaSource (every iPhone — Safari exposes only
+       ManagedMediaSource, which mpegts.js does not use) had exactly two routes here and both were
+       guaranteed to fail: <video> cannot play a continuous MPEG-TS, and the LIVE_HLS wrapper is a
+       single external service. That is the "plays in VLC, dead in the built-in player" report —
+       VLC decodes TS natively, the browser cannot. So on that device the remuxing routes go first
+       and the hopeless native attempt drops to last instead of spending the start budget, and the
+       transcoder — which turns the same stream into HLS the phone CAN play — is finally offered
+       for live at all. It was only ever wired up for Movies and Series. */
+    const rawTsNoMse=!isM3u8&&!tsOk;
+    if(!rawTsNoMse)addv(isM3u8?'hls':'native',du);
+    if(!isM3u8){
+      addv('hls',LIVE_HLS+encodeURIComponent(direct));
+      addv('hls',liveTranscodeUrl(direct));
+      if(rawTsNoMse)addv('native',du);
+    }
   }else if(live){
     const ts=wrap(directUrl(x,'ts')),m3=wrap(directUrl(x,'m3u8'));
     /* v66: LIGHTNING-FAST live start. mpegts.js on the raw continuous .ts opens ONE connection
@@ -2607,9 +2645,16 @@ async function playItemBasic(x){
        playlist only hurt speed and reliability. mpegts is primary; native HLS is the fallback,
        and it still leads for 4K/UHD where mpegts.js software decode would comb the picture. */
     const fastTs=tsOk&&!is4k;
+    /* v6.5: the Apple branch listed an mpegts candidate even where mpegts.js cannot run at all
+       (no MediaSource), so that slot was always spent on a createPlayer() that throws. Only offer
+       it where it is actually supported. */
     plans=fastTs?[{kind:'mpegts',url:ts},{kind:'hls',url:m3}]
-      :isApple?[{kind:'hls',url:m3},{kind:'mpegts',url:ts}]
+      :isApple?(tsOk?[{kind:'hls',url:m3},{kind:'mpegts',url:ts}]:[{kind:'hls',url:m3}])
       :(tsOk?[{kind:'mpegts',url:ts},{kind:'hls',url:m3}]:[{kind:'hls',url:m3}]);
+    /* v6.5: and the transcoder as the final live route, for the channels whose HLS endpoint is
+       broken or whose codec the device can't decode. Last on purpose — see liveTranscodeUrl. */
+    const ltx=liveTranscodeUrl((typeof externalStreamUrl==='function'&&externalStreamUrl(x))||ts);
+    if(ltx&&!plans.some(p=>p.url===ltx))plans.push({kind:'hls',url:ltx});
   }else if(!live&&S.provider==='stalker'){
     /* Stalker VOD/Series: same idea as the live branch above — x.direct_source is the
        freshly resolved create_link URL, not an Xtream path template. */
@@ -2731,23 +2776,54 @@ async function playItemBasic(x){
         : 'Tap a player below to watch this title.')+' (v'+APP_VERSION+')';
     }
     $('netStatus').textContent='Stopped';$('miniMeta').textContent='Stopped';
-    /* v5.8: instead of pointing at the per-row buttons, show the external players that CAN open
-       this file right below the message — no overlap, one tap. VLC/Infuse/nPlayer on iOS,
-       VLC/MX/ExoPlayer on Android, VLC on desktop. */
-    if($('extActions')){
-      $('extActions').classList.remove('hidden');
-      const d=deviceKind();
-      const show=d==='android'?['extVlc','extMx','extKm','extExo']:d==='ios'?['extVlc','extKm']:['extVlc'];
-      ['extVlc','extMx','extKm','extExo','extInfuse','extNplayer'].forEach(id=>{const b=$(id);if(b){b.disabled=false;b.style.opacity='';b.style.display=show.indexOf(id)>=0?'':'none'}});
-      if($('extBrowser'))$('extBrowser').style.display='none';
-      if($('extCopy'))$('extCopy').style.display='';
-    }
+    showExternalOptions();
+  };
+  /* v5.8: instead of pointing at the per-row buttons, show the external players that CAN open this
+     stream right below the message — no overlap, one tap. VLC/KM on iOS, VLC/MX/ExoPlayer on
+     Android, VLC on desktop.
+     v6.5: live uses this too. A channel the browser can't decode still plays perfectly in VLC (that
+     is the whole shape of this bug), so ending live on a bare "try another channel" with no way out
+     was wrong — the working player is one tap away. */
+  function showExternalOptions(){
+    if(!$('extActions'))return;
+    $('extActions').classList.remove('hidden');
+    const d=deviceKind();
+    const show=d==='android'?['extVlc','extMx','extKm','extExo']:d==='ios'?['extVlc','extKm']:['extVlc'];
+    ['extVlc','extMx','extKm','extExo','extInfuse','extNplayer'].forEach(id=>{const b=$(id);if(b){b.disabled=false;b.style.opacity='';b.style.display=show.indexOf(id)>=0?'':'none'}});
+    if($('extBrowser'))$('extBrowser').style.display='none';
+    if($('extCopy'))$('extCopy').style.display='';
+  }
+  /* v6.5: the live dead end. Names the actual reason instead of "try another channel" — on an
+     iPhone a raw MPEG-TS channel is not a broken channel, it is a format the browser has no
+     decoder for, and the fix is a transcoder or VLC, neither of which the old message mentioned. */
+  const liveFailedFallback=()=>{
+    if(_spinTimer){clearTimeout(_spinTimer);_spinTimer=null}
+    $('overlay').style.display='grid';
+    if($('stateProgress'))$('stateProgress').classList.add('hidden');
+    if($('stateThumb')){const th=logoOf(x);if(th){$('stateThumb').src=th;$('stateThumb').classList.remove('hidden')}}
+    const src=String(x.direct_source||'').trim();
+    const rawTs=!!src&&!/\.m3u8(\?|$)/i.test(src);
+    const hasTrans=!!transcoderBase();
+    $('stateTitle').textContent='Couldn’t play this channel here';
+    $('stateText').textContent=(
+      (rawTs&&!tsOk&&!hasTrans)
+        ? 'This channel is a raw MPEG-TS stream and this browser has no MediaSource to decode one — on iPhone, live TV can only play here as HLS. Set a transcoder in Stream Tools to convert it, or tap VLC below. The channel itself is fine.'
+      :(rawTs&&!tsOk)
+        ? 'This channel is raw MPEG-TS, which this browser can’t decode, and the transcoder didn’t return a playable stream. Tap VLC below to watch it now.'
+        : 'Every playback route was tried and none started. Tap a player below to watch it.'
+    )+(lastWhy?' ['+lastWhy+']':'')+' (v'+APP_VERSION+')';
+    $('netStatus').textContent='Stopped';$('miniMeta').textContent='Stopped';
+    showExternalOptions();
   };
   const dropEngines=()=>{if(S.hls){try{S.hls.destroy()}catch(e){}S.hls=null}if(S.ts){try{S.ts.destroy()}catch(e){}S.ts=null}};
   const next=()=>{
     if(token!==S.seq)return;
     idx++;
-    if(idx>=plans.length){if(!live){vodFailedFallback();}else{stopMsg('This channel did not load. Try another channel.');}return}
+    /* v6.5: stop the heartbeat when the cascade is spent. It used to keep ticking, so every start
+       budget after the last candidate fired next() again — harmless in itself (next() returns
+       early) but it re-rendered the dead end on a timer and overwrote the recorded failure reason
+       with one that had no candidate left to name. */
+    if(idx>=plans.length){exhausted=true;clearTimeout(S.timer);if(!live){vodFailedFallback();}else{liveFailedFallback();}return}
     dropEngines();
     attach(plans[idx]);
   };
@@ -2790,7 +2866,7 @@ async function playItemBasic(x){
     v.onplaying=()=>{if(token===S.seq){startedB=true;hide()}};
     /* after the stream has started, an error means a mid-play drop -> RECONNECT (don't die).
        before it starts, fall through to the next candidate. */
-    v.onerror=()=>{if(token!==S.seq)return;startedB?reconnect():next()};
+    v.onerror=()=>{if(token!==S.seq)return;const me=v.error;why('the video element rejected this stream'+(me&&me.code?' (code '+me.code+')':''));startedB?reconnect():next()};
     try{
       /* v6.5: the resolved transcoder stream is attaching. If it fails to START (codec the device
          still can't decode), the fallback will surface this reason; if it plays, the overlay is
@@ -2803,7 +2879,7 @@ async function playItemBasic(x){
            MKV dead-ended on "This file is MKV" even with a green transcoder. Resolve the URL with our
            OWN fetch first (bounded by the 50s transcoder budget, no player timeout), then re-attach
            with the READY playlist URL so the player loads something that responds instantly. */
-        fetch(p.url,{cache:'no-store'}).then(r=>{if(token!==S.seq)return;if(!r||!r.ok){transErr=r?('server returned '+r.status):'no response';next();return;}attach({kind:'hls',url:(r.url||p.url),label:p.label,_resolved:true});}).catch(e=>{if(token!==S.seq)return;transErr='couldn’t reach server ('+((e&&e.message)||'network')+')';next();});
+        fetch(p.url,{cache:'no-store'}).then(r=>{if(token!==S.seq)return;if(!r||!r.ok){transErr=r?('server returned '+r.status):'no response';why('transcoder '+transErr);next();return;}attach({kind:'hls',url:(r.url||p.url),label:p.label,_resolved:true});}).catch(e=>{if(token!==S.seq)return;transErr='couldn’t reach server ('+((e&&e.message)||'network')+')';why('transcoder '+transErr);next();});
         return;
       }
       if(p.kind==='mpegts'){
@@ -2816,7 +2892,7 @@ async function playItemBasic(x){
            opens noticeably quicker. Kept just large enough to stay smooth once playing. */
         S.ts=mpegts.createPlayer({type:'mpegts',isLive:live,url:p.url,cors:true},{enableWorker:true,lazyLoad:false,isLive:live,enableStashBuffer:true,stashInitialSize:live?(mobile()?24*1024:32*1024):(mobile()?128*1024:256*1024),liveBufferLatencyChasing:false,autoCleanupSourceBuffer:true});
         S.ts.attachMediaElement(v);
-        S.ts.on(mpegts.Events.ERROR,()=>{if(token!==S.seq)return;startedB?reconnect():next()});
+        S.ts.on(mpegts.Events.ERROR,(t,d)=>{if(token!==S.seq)return;why(String(t||'error')+(d?' / '+d:''));startedB?reconnect():next()});
         S.ts.load();
       }else if(p.kind==='hls'&&window.Hls&&Hls.isSupported()){
         /* v63: start nearer the live edge and prefetch the first fragment for a quicker start.
@@ -2824,7 +2900,7 @@ async function playItemBasic(x){
            connection can sustain at start; the quality menu can then pin a level manually. */
         S.hls=new Hls({enableWorker:true,lowLatencyMode:false,liveSyncDurationCount:3,startFragPrefetch:true,maxBufferLength:30,startLevel:-1,abrEwmaDefaultEstimate:mobile()?1200000:4000000});
         S.hls.loadSource(p.url);S.hls.attachMedia(v);
-        S.hls.on(Hls.Events.ERROR,(e,d)=>{if(token!==S.seq||!d||!d.fatal)return;startedB?reconnect():next()});
+        S.hls.on(Hls.Events.ERROR,(e,d)=>{if(token!==S.seq||!d||!d.fatal)return;why(String((d&&(d.details||d.type))||'fatal error'));startedB?reconnect():next()});
         /* v69: quality menu — populate from the real variant list, honour a saved preference,
            and keep the button label in sync as ABR/levels change. */
         S.hls.on(Hls.Events.MANIFEST_PARSED,()=>{if(token!==S.seq)return;applySavedQuality();refreshQualityUI();});
@@ -2832,7 +2908,7 @@ async function playItemBasic(x){
       }else{
         v.src=p.url;v.load();
       }
-    }catch(e){next();return}
+    }catch(e){why('engine failed to start ('+((e&&e.message)||e)+')');next();return}
     const pr=v.play();
     if(pr&&pr.catch)pr.catch(()=>{if(token!==S.seq)return;/* v79: unmuted autoplay was blocked — play muted so it never stalls, but auto-unmute on the very next interaction (any tap) so the user never has to find the sound button */v.muted=true;/* v3.4: reflect the real state — show the MUTED icon so the user knows to tap it to enable sound */if($('muteBtn'))$('muteBtn').innerHTML=ICONS.muted;const p2=v.play();if(p2&&p2.catch)p2.catch(()=>{});armUnmute();});
   };
@@ -2842,7 +2918,7 @@ async function playItemBasic(x){
      30s of clean advancement resets the reconnect budget. This is exactly how Smart STB /
      Smarters stay alive; it never touches a healthy stream, so no stutter of its own. */
   const beat=()=>{
-    if(token!==S.seq)return;
+    if(token!==S.seq||exhausted)return;
     const now=Date.now();
     /* any clock movement — forward playback OR a user seek — counts as "alive"; only a truly
        frozen clock triggers a reconnect. */
@@ -2871,7 +2947,7 @@ async function playItemBasic(x){
          (Browsing Movies/Series already fires a warm ping, so it's usually awake before you tap.)
          A known-hard format with NO transcoder still gets the short 7s quick verdict. */
       const budget=isTrans?50000:(quickVerdict?7000:(live?14000:(last?38000:12000)));
-      if(attachAt&&now-attachAt>budget)next();
+      if(attachAt&&now-attachAt>budget){why('no picture within '+Math.round(budget/1000)+'s');next();}
     }else if(!v.paused&&!v.ended&&!v.seeking&&(now-(S.lastSeekAt||0))>12000&&now-lastProg>9000){reconnect();}
     /* v68: a user seek (forward/back button OR dragging the scrubber) makes the clock jump and
        then buffer at the new spot — that is NOT a stall. Without this guard the watchdog fired
@@ -3324,7 +3400,7 @@ async function tryPlans(plans,i){
   }catch(e){nextPlan();return}
   /* the heartbeat: every stall/recovery/UI decision lives here, nowhere else */
   const beat=()=>{
-    if(token!==S.seq)return;
+    if(token!==S.seq||exhausted)return;
     const now=Date.now(),t=v.currentTime||0,be=bufEnd();
     if(be>E.lastBuf+0.2){E.lastBuf=be;E.frozenAt=0}
     else if(!E.frozenAt)E.frozenAt=now;
