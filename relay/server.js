@@ -105,10 +105,20 @@ async function handleStreamProxy(req, res, url) {
   if (target.protocol !== 'http:' && target.protocol !== 'https:') return send(res, 400, 'Invalid url');
   if (isPrivateHost(target.hostname)) return send(res, 400, 'Refused');
 
+  /* v7.2: same STB identity passthrough as the Worker build — a Stalker stream link is issued to a
+     MAG box and the origin often re-checks that identity when the stream is fetched, answering 403
+     to a plain browser user-agent on a link it had just handed out. */
+  const wantStb = p.get('ua') === 'stb';
+  const stbMac = p.get('mac') || '';
   const headers = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    'User-Agent': wantStb ? STB_UA : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
     'Accept': '*/*'
   };
+  if (wantStb) {
+    if (MAC_RE.test(stbMac)) headers['Cookie'] = `mac=${stbMac}; stb_lang=en; timezone=Europe/London`;
+    headers['X-User-Agent'] = 'Model: MAG250; Link: WiFi';
+    headers['Referer'] = target.origin + '/c/';
+  }
   const range = req.headers['range'];
   if (range) headers['Range'] = range;
 

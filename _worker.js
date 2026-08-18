@@ -187,10 +187,22 @@ async function handleGenericProxy(request) {
     return new Response('Refused', { status: 400, headers: withCors(new Headers()) });
   }
 
+  /* v7.2: a Stalker stream link is issued TO a set-top box — the portal saw a MAG user-agent and a
+     mac cookie when it created the link, and many Ministra/Stalker setups check the same identity
+     again when the stream itself is fetched. This relay was sending a desktop Chrome user-agent and
+     no cookie, so the origin answered 403 on a link it had just issued. Carry the STB identity
+     through when the caller asks for it (ua=stb&mac=...). */
+  const wantStb = params.get('ua') === 'stb';
+  const stbMac = params.get('mac') || '';
   const headers = new Headers({
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    'User-Agent': wantStb ? STALKER_UA : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
     'Accept': '*/*'
   });
+  if (wantStb) {
+    if (/^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$/.test(stbMac)) headers.set('Cookie', `mac=${stbMac}; stb_lang=en; timezone=Europe/London`);
+    headers.set('X-User-Agent', 'Model: MAG250; Link: WiFi');
+    headers.set('Referer', target.origin + '/c/');
+  }
   const range = request.headers.get('range');
   if (range) headers.set('Range', range);
 

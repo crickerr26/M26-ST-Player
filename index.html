@@ -876,7 +876,7 @@ function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.re
 /* Version scheme restarts here at 5.0 by owner request; the previous 7.x line is retired.
    Bump this on every release that changes anything a user can see — it is the single source for
    the splash screen, the login screen and the version badges, so nothing else needs editing. */
-const APP_VERSION='7.1';
+const APP_VERSION='7.2';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -983,7 +983,16 @@ function proxyBase(){
   if(r&&Array.isArray(S.relayRoutes)&&S.relayRoutes.indexOf('/proxy')>=0)return r.replace(/\/+$/,'')+'/proxy?url=';
   return PROXY;
 }
-function proxyUrl(u){return proxyBase()+encodeURIComponent(u)}
+/* v7.2: Stalker stream URLs are fetched with the set-top-box identity the portal issued them to.
+   Without it the origin sees a plain browser asking for a MAG link and answers 403. */
+function proxyUrl(u){
+  let extra='';
+  try{
+    const st=S.stalker||{};
+    if(S.provider==='stalker'&&MAC_RE.test(String(st.mac||'')))extra='&ua=stb&mac='+encodeURIComponent(st.mac);
+  }catch(e){}
+  return proxyBase()+encodeURIComponent(u)+extra;
+}
 function accountUrl(){return `${S.url}/player_api.php?username=${encodeURIComponent(S.user)}&password=${encodeURIComponent(S.pass)}`}
 function apiUrl(action,extra=''){return `${accountUrl()}&action=${action}${extra}`}
 /* v24: multi-proxy fallback chain. The old code depended on ONE worker proxy —
@@ -2988,7 +2997,18 @@ async function playItemBasic(x){
       $('stateText').textContent='The transcoder was tried but '+transErr+'. Free servers sleep when idle — if it says "server returned 504" or "no response", wait ~30s and tap the title again. Or use a player below. (v'+APP_VERSION+')';
     }else{
       $('stateTitle').textContent=unplayable?('This file is '+c.toUpperCase()):'Couldn’t play this title';
-      $('stateText').textContent=(unplayable
+      /* v7.2: a 403 from the STREAM host is a different animal from "no route worked". The host is up
+       and refusing a link the portal itself just issued — which on Stalker means the link is tied
+       to the address that asked for it. Cloudflare Workers do not egress from one fixed address, so
+       create_link and the stream fetch can leave from different IPs and the origin rejects the
+       second one. A relay is a single host with a stable address, which is the fix. */
+    if(/HTTP 403/.test(whyAll())&&!stalkerRelayBase()){
+      $('stateText').textContent='The stream host refused this link (HTTP 403) — it is up, it just will not serve it to us. A Stalker link is tied to the address that requested it, and this app is served from Cloudflare, which does not use one fixed address, so the link is created from one and played from another. Set a Portal relay URL in Stream tools (one host, one address, and it also sends the set-top-box identity) — or tap VLC below, which connects straight from your phone.'+(whyAll()?' ['+whyAll()+']':'')+' (v'+APP_VERSION+')';
+      $('netStatus').textContent='Stopped';$('miniMeta').textContent='Stopped';
+      showExternalOptions();
+      return;
+    }
+    $('stateText').textContent=(unplayable
         ? 'Web browsers can’t decode '+c.toUpperCase()+' directly. Tap a player below to watch it instantly — or set up a transcoder (Stream Tools) to play these right here.'
         : 'Tap a player below to watch this title.')+' (v'+APP_VERSION+')';
     }
