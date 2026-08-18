@@ -16,11 +16,22 @@
    No dependencies; Node 18+ (global fetch). Start: node server.js  (PORT from env, default 8080) */
 'use strict';
 const http = require('node:http');
+const fs = require('node:fs');
+const path = require('node:path');
 
 const ENDPOINTS = new Set(['portal.php', 'stalker_portal/server/load.php', 'server/load.php', 'c/portal.php', 'stalker_portal/portal.php', 'magportal/portal.php', 'p/portal.php', 'k/portal.php']);
 const STB_UA = 'Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3';
 const MAC_RE = /^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$/;
 const PORT = Number(process.env.PORT) || 8080;
+const APP_ROOT = path.resolve(__dirname, '..');
+const MIME = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'application/javascript; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.png': 'image/png',
+  '.ico': 'image/x-icon',
+  '.webmanifest': 'application/manifest+json; charset=utf-8'
+};
 
 function cors(extra) {
   return Object.assign({
@@ -35,6 +46,23 @@ function cors(extra) {
 function send(res, status, body, headers) {
   res.writeHead(status, cors(headers || { 'content-type': 'text/plain; charset=utf-8' }));
   res.end(body);
+}
+function serveStatic(req, res, url) {
+  if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, 'Method not allowed');
+  const requested = url.pathname === '/' ? '/index.html' : decodeURIComponent(url.pathname);
+  const file = path.resolve(APP_ROOT, requested.replace(/^\/+/, ''));
+  if (!file.startsWith(APP_ROOT + path.sep)) return send(res, 403, 'Refused');
+  fs.stat(file, (err, stat) => {
+    if (err || !stat.isFile()) return send(res, 404, 'Not found');
+    const headers = cors({
+      'content-type': MIME[path.extname(file).toLowerCase()] || 'application/octet-stream',
+      'content-length': stat.size,
+      'cache-control': 'no-store'
+    });
+    res.writeHead(200, headers);
+    if (req.method === 'HEAD') return res.end();
+    fs.createReadStream(file).pipe(res);
+  });
 }
 /* Same SSRF guard as the Worker's generic relay: a caller-supplied host must never be usable to
    probe whatever private network this happens to be deployed inside. */
@@ -135,11 +163,11 @@ const server = http.createServer(async (req, res) => {
   try { url = new URL(req.url, 'http://localhost'); } catch { return send(res, 400, 'Bad request'); }
 
   if (req.method === 'OPTIONS') return send(res, 204, '');
-  if (url.pathname === '/' || url.pathname === '/health') {
+  if (url.pathname === '/health') {
     return send(res, 200, JSON.stringify({ ok: true, service: 'm26-stalker-relay', routes: ['/stalker-proxy', '/proxy'] }), { 'content-type': 'application/json' });
   }
   if (url.pathname === '/proxy') return handleStreamProxy(req, res, url).catch(() => { try { res.end(); } catch {} });
-  if (url.pathname !== '/stalker-proxy') return send(res, 404, 'Not found');
+  if (url.pathname !== '/stalker-proxy') return serveStatic(req, res, url);
   if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, 'Method not allowed');
 
   const p = url.searchParams;
