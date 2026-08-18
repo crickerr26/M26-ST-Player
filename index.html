@@ -876,7 +876,7 @@ function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.re
 /* Version scheme restarts here at 5.0 by owner request; the previous 7.x line is retired.
    Bump this on every release that changes anything a user can see — it is the single source for
    the splash screen, the login screen and the version badges, so nothing else needs editing. */
-const APP_VERSION='6.8';
+const APP_VERSION='6.9';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1102,6 +1102,13 @@ function pushRecent(x){const k=keyOf(x);S.recent=[k,...S.recent.filter(y=>y!==k)
    use), so the rest of the app — Home, Live TV, Movies, Series, the player — needs no further
    changes to display and play Stalker content. */
 function genStalkerMac(){const hex=()=>Math.floor(Math.random()*256).toString(16).padStart(2,'0').toUpperCase();return ['02',hex(),hex(),hex(),hex(),hex()].join(':')}
+/* v6.9: THE DEVICE MAC THIS BUILD SHIPS WITH. A fresh install — a browser that has never opened
+   the app, or a deployment URL opened for the first time, which is a new origin with empty storage
+   — starts with THIS address instead of inventing a random one, so the MAC registered with the
+   provider is the one in the box from the very first load. Anything already stored still wins over
+   it (see getOrCreateStalkerMac), and the pencil still edits it. Set to '' to go back to
+   generating a random MAC per install. */
+const DEFAULT_STALKER_MAC='02:27:D9:D4:38:77';
 const MAC_RE=/^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/;
 const validMac=v=>MAC_RE.test(String(v||'').trim())?String(v).trim().toUpperCase():'';
 /* v6.8: THE MAC IS THE DEVICE IDENTITY AND MUST NOT CHANGE. It used to live in exactly one place —
@@ -1154,7 +1161,7 @@ function getOrCreateStalkerMac(){
   try{mac=validMac(store.getItem(STALKER_MAC_KEY))}catch(e){}
   if(!mac)mac=macCookie();
   if(!mac)mac=macFromSavedLogin();
-  if(!mac){mac=genStalkerMac();_macWasGenerated=true}
+  if(!mac){mac=validMac(DEFAULT_STALKER_MAC)||genStalkerMac();_macWasGenerated=true}
   return persistStalkerMac(mac,_macWasGenerated)||mac;
 }
 /* IndexedDB is the one store that cannot be read synchronously, so it is checked just after boot.
