@@ -302,6 +302,14 @@ export default {
       return handleGenericProxy(request);
     }
 
+    /* Home-screen shortcuts saved before v6.7 launch /media26.html, a page that has
+       never existed in this repo, so the installed app opened a 404 and showed a blank
+       screen. Send those installs to the real entry point instead of making everyone
+       remove and re-add the app. */
+    if (url.pathname === '/media26.html') {
+      return Response.redirect(`${url.origin}/index.html${url.search}`, 302);
+    }
+
     if (!url.pathname.startsWith('/transcoder/')) {
       return env.ASSETS.fetch(request);
     }
