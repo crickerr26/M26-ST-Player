@@ -753,9 +753,9 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
   </div>
 </div>
 <div class="login" id="login">
-  <span class="versionBadge login-version">v7.0</span>
+  <span class="versionBadge login-version">v7.1</span>
   <div class="login-card">
-    <img class="login-logo" src="watermark%20logo.png" alt="Media26 Logo"><h2>M26 Stalker Player</h2><p style="margin:2px 0 0;font-size:11px;color:#7a9bc8;font-weight:700;letter-spacing:.5px">DEVELOPED BY INZI RISHI</p><p class="devVersion" id="appVersionLine" style="margin:3px 0 0;font-size:11px;color:#96a9c6;font-weight:800;letter-spacing:.4px">Version v7.0</p>
+    <img class="login-logo" src="watermark%20logo.png" alt="Media26 Logo"><h2>M26 Stalker Player</h2><p style="margin:2px 0 0;font-size:11px;color:#7a9bc8;font-weight:700;letter-spacing:.5px">DEVELOPED BY INZI RISHI</p><p class="devVersion" id="appVersionLine" style="margin:3px 0 0;font-size:11px;color:#96a9c6;font-weight:800;letter-spacing:.4px">Version v7.1</p>
     <div class="profileList hidden" id="profileList">
       <div class="profileListHead">Saved Profiles</div>
       <div class="profileRows" id="profileRows"></div>
@@ -941,7 +941,7 @@ function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.re
 /* Version scheme restarts here at 5.0 by owner request; the previous 7.x line is retired.
    Bump this on every release that changes anything a user can see — it is the single source for
    the splash screen, the login screen and the version badges, so nothing else needs editing. */
-const APP_VERSION='7.0';
+const APP_VERSION='7.1';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -2701,6 +2701,8 @@ async function playItemBasic(x){
        HLS playlists contain relative segments, and some portals bind the link to the relay IP
        that created it. Built-in playback must consume them through the same relay /proxy. */
     const du=direct?stalkerMediaProxyUrl(direct):'';
+    const duPlain=direct?proxyUrl(direct):'';
+    const duRaw=(direct&&!blocked(direct))?direct:'';
     const isM3u8=/\.m3u8(\?|$)/i.test(direct);
     plans=[];
     /* v94: mpegts.js can only ever parse raw MPEG-TS/FLV, never an HLS .m3u8 playlist — offering
@@ -2710,6 +2712,12 @@ async function playItemBasic(x){
        isn't m3u8. */
     if(tsOk&&!isM3u8)plans.push({kind:'mpegts',url:du});
     plans.push({kind:isM3u8?'hls':'native',url:du});
+    /* same URL, ordinary browser headers — see the v7.1 note in plan() */
+    if(duPlain&&duPlain!==du){
+      if(tsOk&&!isM3u8)plans.push({kind:'mpegts',url:duPlain});
+      plans.push({kind:isM3u8?'hls':'native',url:duPlain});
+    }
+    if(duRaw)plans.push({kind:isM3u8?'hls':'native',url:duRaw});
     if(!isM3u8)plans.push({kind:'hls',url:LIVE_HLS+encodeURIComponent(direct)});
     }
   }else if(live){
@@ -2735,14 +2743,21 @@ async function playItemBasic(x){
        freshly resolved create_link URL, not an Xtream path template. */
     const direct=String(x.direct_source||'').trim();
     const du=direct?stalkerMediaProxyUrl(direct):'';
+    const duPlain=direct?proxyUrl(direct):'';
+    const duRaw=(direct&&!blocked(direct))?direct:'';
     const isM3u8=/\.m3u8(\?|$)/i.test(direct);
     const hlsUsable=(window.Hls&&Hls.isSupported())||nativeHls(v);
     plans=[];
     const addv=(kind,url)=>{if(url&&!plans.some(p=>p.kind===kind&&p.url===url))plans.push({kind,url});};
     addv(isM3u8?'hls':'native',du);
+    /* the plain hop and the raw file — the two routes that played Movies and Series before
+       v6.7 routed everything through the MAC-bearing relay. See the v7.1 note in plan(). */
+    addv(isM3u8?'hls':'native',duPlain);
+    addv(isM3u8?'hls':'native',duRaw);
     if(!isM3u8){
       if(hlsUsable)addv('hls',LIVE_HLS+encodeURIComponent(direct));
       if(tsOk)addv('mpegts',du);
+      if(tsOk)addv('mpegts',duPlain);
     }
     try{const tb=(typeof transcoderBase==='function')&&transcoderBase();if(tb&&typeof transcodeUrl==='function'){const t=transcodeUrl(direct,'fastvod');if(t)addv('hls',t)}}catch(e){}
   }else{
@@ -3052,8 +3067,19 @@ function plan(x){
     const isHls=/\.m3u8(\?|$)/i.test(stalkerUrl);
     /* An http stream on an https page is mixed content and the browser blocks it outright, so in
        that case the relay is the only way through and a "direct" attempt is a guaranteed stall. */
-    const direct='';
+    /* v7.1: the working XT build proves the point the v3.6 note above already makes — the raw
+       file handed straight to <video>, and a PLAIN relay hop with an ordinary browser
+       User-Agent, are what actually play Movies and Series. v6.7 dropped both from the Stalker
+       path: it forced every attempt through the relay AND made that relay present the MAG
+       User-Agent, mac cookie and Bearer token. Those belong on the portal API, which is what
+       issues the link; the host that serves the video is usually plain nginx or a CDN, and a
+       set-top-box User-Agent with an unexpected Authorization header is exactly the kind of
+       request it refuses. Keep the MAC-bearing hop first (portals that bind a link to its
+       creator do need it) and fall back to the plain hop, then to the raw URL where the browser
+       can reach it — so whichever of the three a given portal accepts, one of them plays. */
+    const direct=blocked(stalkerUrl)?'':stalkerUrl;
     const relayed=stalkerMediaProxyUrl(stalkerUrl);
+    const relayedPlain=proxyUrl(stalkerUrl);
     /* v6.9: when the video sits on a port a Cloudflare Worker is not allowed to fetch, every
        relay path below fails inside the Worker before it reaches the portal — so leading with
        them just burns the start budget on attempts that cannot succeed. The transcoder runs on
@@ -3066,12 +3092,17 @@ function plan(x){
       if(direct){add('native','Direct',direct);add('hls','Direct HLS',direct);}
       add('native','Relay',relayed);
       add('hls','Relay HLS',relayed);
+      add('native','Plain Relay',relayedPlain);
+      add('hls','Plain Relay HLS',relayedPlain);
     }else{
       if(tsOk&&direct)add('mpegts','Direct TS',direct);
       if(tsOk)add('mpegts','Relay TS',relayed);
       if(direct)add('native','Direct',direct);
       add('native','Relay',relayed);
       add('hls','Relay HLS',relayed);
+      if(tsOk)add('mpegts','Plain Relay TS',relayedPlain);
+      add('native','Plain Relay',relayedPlain);
+      add('hls','Plain Relay HLS',relayedPlain);
     }
     /* Movies may be MKV/HEVC the browser cannot decode; the transcoder is the last resort. Live
        and radio are continuous, so they stay on the direct/relay paths. */
