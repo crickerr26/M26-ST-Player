@@ -1058,6 +1058,62 @@ function stalkerMediaProxyCapable(){
   }catch(e){return false}
 }
 const STALKER_RELAY_HINT='This address has no relay that can present your MAC to the portal, so the portal refuses every stream while the catalogue still loads. Open the app from its Cloudflare Workers address or your own VPS, or set a Portal relay URL in Settings → Portal relay.';
+/* v6.9: a Cloudflare Worker can only fetch() the ports Cloudflare itself proxies. A Stalker
+   portal answers create_link with whatever host:port serves the video, and IPTV panels very
+   commonly use a port outside that set (25461, 8000, 8081, 9000 ...). Those fetches fail inside
+   the Worker before a packet ever reaches the portal, so EVERY stream dies while the catalogue —
+   which lives on the portal's own :80 — keeps loading perfectly. The relay in relay/ runs on an
+   ordinary host with no such restriction, which is why deploying it fixes exactly this case. */
+const CF_HTTP_PORTS=['80','8080','8880','2052','2082','2086','2095'];
+const CF_HTTPS_PORTS=['443','2053','2083','2087','2096','8443'];
+function cfCanFetchPort(u){
+  try{
+    const x=new URL(u);
+    const https=x.protocol==='https:';
+    const port=x.port||(https?'443':'80');
+    return (https?CF_HTTPS_PORTS:CF_HTTP_PORTS).indexOf(port)>=0;
+  }catch(e){return true}
+}
+function mediaRelayIsWorker(){
+  try{
+    const r=stalkerRelayBase();
+    if(r&&Array.isArray(S.relayRoutes)&&S.relayRoutes.indexOf('/proxy')>=0)return false;
+    const h=new URL(proxyBase(),location.href).hostname;
+    return /\.workers\.dev$/i.test(h)||/\.workers\.dev$/i.test(location.hostname);
+  }catch(e){return false}
+}
+/* Ask the media relay directly what happened, instead of inferring it from a <video> element
+   that only ever reports "it didn't play". One bounded request, headers only. */
+async function whyStreamFailed(){
+  const tried=S.lastTriedUrl||'';
+  if(!tried)return '';
+  let target='';
+  try{target=new URL(tried,location.href).searchParams.get('url')||''}catch(e){}
+  if(!target)return '';
+  let status=0,body='';
+  try{
+    const ac=new AbortController();
+    const t=setTimeout(()=>ac.abort(),8000);
+    const r=await fetch(tried,{cache:'no-store',signal:ac.signal,headers:{Range:'bytes=0-1'}});
+    clearTimeout(t);
+    status=r.status;
+    if(!r.ok){try{body=plainBody(await r.text(),160)}catch(e){}}
+    else{try{r.body&&r.body.cancel()}catch(e){}}
+  }catch(e){return ''}
+  if(status>=200&&status<400)return '';
+  let port='';try{port=new URL(target).port||''}catch(e){}
+  const portBad=!cfCanFetchPort(target)&&mediaRelayIsWorker();
+  if(portBad){
+    return 'The portal serves this stream from port '+port+', and a Cloudflare Worker is only allowed to fetch a fixed set of ports — so the relay never reaches the video at all, which is why nothing plays while the catalogue loads fine. Deploy the free relay (Settings → Portal relay → Deploy free relay) and paste its URL there; it runs on an ordinary host with no port limit.';
+  }
+  if(/upstream_unreachable/i.test(body)||status===502){
+    return 'The relay could not reach '+((()=>{try{return new URL(target).host}catch(e){return 'the stream host'}})())+(port?' on port '+port:'')+'. The portal created the link but the video host refused or ignored the relay. A relay of your own (Settings → Portal relay) fetches from a single ordinary address and usually clears this.';
+  }
+  if(status===401||status===403){
+    return 'The stream host refused the link with HTTP '+status+'. Stalker links are issued to the address that asked for them, so this usually means the link was created from one address and played from another. Setting a Portal relay URL in Settings makes both requests come from the same place.';
+  }
+  return 'The relay answered HTTP '+status+' for this stream'+(body?' ('+body+')':'')+'.';
+}
 function accountUrl(){return `${S.url}/player_api.php?username=${encodeURIComponent(S.user)}&password=${encodeURIComponent(S.pass)}`}
 function apiUrl(action,extra=''){return `${accountUrl()}&action=${action}${extra}`}
 /* v24: multi-proxy fallback chain. The old code depended on ONE worker proxy —
@@ -2968,6 +3024,14 @@ function plan(x){
        that case the relay is the only way through and a "direct" attempt is a guaranteed stall. */
     const direct='';
     const relayed=stalkerMediaProxyUrl(stalkerUrl);
+    /* v6.9: when the video sits on a port a Cloudflare Worker is not allowed to fetch, every
+       relay path below fails inside the Worker before it reaches the portal — so leading with
+       them just burns the start budget on attempts that cannot succeed. The transcoder runs on
+       an ordinary host with no port restriction, so it is the only path that can work here, and
+       it goes first. Live included: the "don't spend a second connection" rule exists to protect
+       a relay path that, in this one case, was never going to carry anything. With a reachable
+       port nothing changes and the relay still leads. */
+    if(mediaRelayIsWorker()&&!cfCanFetchPort(stalkerUrl))addTrans('Stream',stalkerUrl);
     if(isHls){
       if(direct){add('native','Direct',direct);add('hls','Direct HLS',direct);}
       add('native','Relay',relayed);
@@ -3280,6 +3344,7 @@ async function tryPlans(plans,i){
     /* Every path having failed on a Stalker portal is the expected outcome when the media relay
        cannot send the MAC — report that rather than blaming the channel. */
     if(S.provider==='stalker'&&!stalkerMediaProxyCapable()){fail(STALKER_RELAY_HINT);return}
+    if(S.provider==='stalker'){const why=await whyStreamFailed();if(why){fail(why);return}}
     fail('This stream is unavailable. Try another channel version.');return
   }
   cleanup();
