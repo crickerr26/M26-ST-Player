@@ -1041,6 +1041,23 @@ function stalkerMediaProxyUrl(u){
   if(S.provider!=='stalker'||!st.portal||!st.mac)return base;
   return base+'&portal='+encodeURIComponent(st.portal)+'&mac='+encodeURIComponent(st.mac)+'&token='+encodeURIComponent(st.token||'');
 }
+/* v6.9: a Stalker stream link is only honoured when the request that fetches it carries the MAG
+   User-Agent and the mac cookie, so the media relay has to be one that sets them — this repo's
+   Worker (served same-origin) or a deployed relay whose /health advertises /proxy. The generic
+   public CORS proxy that _STATIC_HOSTS falls back to does neither: it forwards the stream URL as
+   an ordinary browser request, the portal sees a stranger presenting a link it issued to a MAG
+   box, and refuses it. That fails EVERY stream while the catalogue keeps loading perfectly,
+   because the catalogue goes through /stalker-proxy, which is a different route entirely.
+   Knowing which of the two we have is what turns "this stream is unavailable" into something
+   the user can actually act on. */
+function stalkerMediaProxyCapable(){
+  try{
+    const r=stalkerRelayBase();
+    if(r&&Array.isArray(S.relayRoutes)&&S.relayRoutes.indexOf('/proxy')>=0)return true;
+    return _hasWorkerBackend();
+  }catch(e){return false}
+}
+const STALKER_RELAY_HINT='This address has no relay that can present your MAC to the portal, so the portal refuses every stream while the catalogue still loads. Open the app from its Cloudflare Workers address or your own VPS, or set a Portal relay URL in Settings → Portal relay.';
 function accountUrl(){return `${S.url}/player_api.php?username=${encodeURIComponent(S.user)}&password=${encodeURIComponent(S.pass)}`}
 function apiUrl(action,extra=''){return `${accountUrl()}&action=${action}${extra}`}
 /* v24: multi-proxy fallback chain. The old code depended on ONE worker proxy —
@@ -1396,7 +1413,9 @@ async function runPortalDiagnostics(write){
   const portal=st.portal||normalize(($('stalkerUrl')&&$('stalkerUrl').value)||'');
   const mac=String(st.mac||($('stalkerMac')&&$('stalkerMac').value)||'').trim().toUpperCase();
   lines.length=0;
-  emit('portal: '+(portal||'(none)')+'\nmac: '+(mac||'(none)')+'\nrelay: '+(stalkerRelayBase()||'(same-origin default)')+'\nproxy: '+(stalkerProxyBase()||'(unavailable)')+'\nsession token: '+(st.token?'present':'none yet')+'\n');
+  /* v6.9: the media relay is a different route from the API proxy above, and it is the one that
+     decides whether streams play at all — print it, and whether it can send the MAC. */
+  emit('portal: '+(portal||'(none)')+'\nmac: '+(mac||'(none)')+'\nrelay: '+(stalkerRelayBase()||'(same-origin default)')+'\nproxy: '+(stalkerProxyBase()||'(unavailable)')+'\nmedia relay: '+(proxyBase()||'(unavailable)')+'\nmedia relay sends MAC: '+(stalkerMediaProxyCapable()?'yes':'NO — streams will be refused')+'\napp origin: '+location.origin+'\nsession token: '+(st.token?'present':'none yet')+'\n');
   if(!portal||!mac){emit('Enter a portal URL and MAC on the login screen first.');return lines.join('\n')}
 
   /* Phase 1 — raw reachability, needs no session, so this still works when LOGIN itself is what's
@@ -3256,7 +3275,13 @@ function chooserResolve(save){
        the MediaSource mid-play - that was the "repeat/loop" bug. */
 async function tryPlans(plans,i){
   const v=$('video');
-  if(!plans[i]){if(await tryLiveAlternative())return;fail('This stream is unavailable. Try another channel version.');return}
+  if(!plans[i]){
+    if(await tryLiveAlternative())return;
+    /* Every path having failed on a Stalker portal is the expected outcome when the media relay
+       cannot send the MAC — report that rather than blaming the channel. */
+    if(S.provider==='stalker'&&!stalkerMediaProxyCapable()){fail(STALKER_RELAY_HINT);return}
+    fail('This stream is unavailable. Try another channel version.');return
+  }
   cleanup();
   const token=++S.seq,p=plans[i],live=isLiveLike(S.current),transcoded=/Transcoded/i.test(p.label);
   S.lastTriedUrl=p.url;
