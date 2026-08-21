@@ -325,40 +325,58 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
 .home-bg span:nth-child(3){width:280px;height:280px;left:18%;bottom:-70px;background:radial-gradient(circle,#2dd4bf,transparent 70%);animation-delay:-8s}
 .home-bg span:nth-child(4){width:210px;height:210px;right:12%;bottom:4%;background:radial-gradient(circle,#f59e0b,transparent 70%);animation-delay:-2s}
 @keyframes homeFloat{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(26px,-32px) scale(1.08)}66%{transform:translate(-22px,22px) scale(.94)}}
-.home-inner{position:relative;z-index:1;margin:auto;width:min(780px,100%);display:flex;flex-direction:column;align-items:center;gap:26px}
-.home-head{text-align:center;animation:homeRise .7s cubic-bezier(.2,.8,.2,1) both}
-.home-brand{width:68px;height:68px;margin:0 auto 14px;border-radius:20px;background:linear-gradient(135deg,rgba(56,189,248,.2),rgba(45,212,191,.14));display:grid;place-items:center;box-shadow:0 12px 40px rgba(56,189,248,.28),inset 0 0 0 1px rgba(255,255,255,.08);animation:homeBrandPulse 3s ease-in-out infinite}
-.home-brand img{width:72%;height:72%;object-fit:contain}
-.home-head h1{font-size:clamp(22px,5.2vw,32px);font-weight:900;letter-spacing:-.6px;background:linear-gradient(90deg,#eaf6ff,#b9d4f4);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
-.home-head p{margin-top:6px;color:#93a7c7;font-size:14px;font-weight:600}
-.home-cards{width:100%;display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.home-card{position:relative;overflow:hidden;aspect-ratio:1/1;display:flex;flex-direction:column;justify-content:flex-end;align-items:flex-start;text-align:left;padding:14px;border-radius:20px;border:1px solid rgba(255,255,255,.14);color:#fff;box-shadow:0 14px 34px rgba(0,0,0,.3);transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease;animation:homeRise .7s cubic-bezier(.2,.8,.2,1) both}
-.home-card:nth-child(1){animation-delay:.06s}.home-card:nth-child(2){animation-delay:.14s}.home-card:nth-child(3){animation-delay:.22s}
-.home-card:active{transform:scale(.975)}
-@media(hover:hover){.home-card:hover{transform:translateY(-4px);box-shadow:0 26px 56px rgba(0,0,0,.46)}}
-.hc-live{background:linear-gradient(150deg,#2f7ef0,#38bdf8 55%,#3fd3d8)}
-.hc-vod{background:linear-gradient(150deg,#8b45e8,#a855f7 48%,#ec4899)}
-.hc-series{background:linear-gradient(150deg,#3ea88f,#7cb85f 52%,#f0b429)}
-.hc-radio{background:linear-gradient(150deg,#2fae72,#35c48f 50%,#3fbfe0)}
-.hc-ic{position:absolute;top:14px;left:14px;display:grid;place-items:center;color:#fff;flex:none}.hc-ic svg{width:26px;height:26px}
-
-
-.hc-body{display:flex;flex-direction:column;gap:4px;min-width:0;width:100%}.hc-num{font-variant-numeric:tabular-nums;font-size:14px;font-weight:650;letter-spacing:-.01em;line-height:1.2;color:rgba(255,255,255,.94)}.hc-name{font-size:17px;font-weight:850;letter-spacing:-.02em;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-
-
-
-@media(hover:hover){.home-card:hover }
-
-.home-card:nth-child(2) .home-card:nth-child(3) 
-.home-exit{margin-top:4px;height:42px;padding:0 24px;border-radius:12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#b7c6de;font-weight:800;animation:homeRise .7s ease .3s both}
+.home-inner{position:relative;z-index:1;margin:auto;width:min(1180px,100%);display:flex;flex-direction:column;gap:16px}
+/* v6.8: the hub is one grid — a big Live TV hero, a 2x2 block of the smaller categories, and a
+   column of actions on the right. Below 820px it stacks: hero, then tiles, then the actions
+   as full-width rows, which is the phone layout. */
+.home-head{display:flex;align-items:center;gap:12px;animation:homeRise .7s cubic-bezier(.2,.8,.2,1) both}
+.home-brand{width:44px;height:44px;border-radius:13px;background:linear-gradient(135deg,rgba(56,189,248,.32),rgba(45,212,191,.22));display:grid;place-items:center;box-shadow:inset 0 0 0 1px rgba(255,255,255,.14);flex:none}
+.home-brand img{width:74%;height:74%;object-fit:contain}
+.home-head h1{font-size:17px;font-weight:900;letter-spacing:.3px;color:#eaf3ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hub-version{margin-left:auto;flex:none}
+.hub{display:grid;gap:14px;grid-template-columns:1.55fr minmax(0,1.5fr) minmax(0,.95fr);grid-template-areas:"hero tiles acts";animation:homeRise .7s cubic-bezier(.2,.8,.2,1) .06s both}
+.hub-hero{grid-area:hero}
+.hub-tiles{grid-area:tiles;display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.hub-acts{grid-area:acts;display:grid;grid-template-rows:1fr 1fr 1fr;gap:14px}
+.hub-tile{position:relative;overflow:hidden;width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:12px;color:#fff;text-align:center;border-radius:22px;border:1px solid rgba(255,255,255,.14);box-shadow:0 16px 38px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.14);transition:transform .18s ease,box-shadow .18s ease}
+.hub-hero .hub-tile{height:100%;min-height:330px;gap:18px}
+.hub-tiles .hub-tile{min-height:158px}
+.hub-tile svg{width:42px;height:42px;flex:none}
+.hub-hero .hub-tile svg{width:104px;height:104px}
+.hub-tile .hc-name{font-size:17px;font-weight:850;letter-spacing:-.01em}
+.hub-hero .hub-tile .hc-name{font-size:27px;font-weight:900;letter-spacing:.2px}
+.hub-tile .hc-num{font-size:12px;font-weight:700;color:rgba(255,255,255,.9);font-variant-numeric:tabular-nums}
+.hub-hero .hub-tile .hc-num{font-size:14px}
+.hub-tile:active{transform:scale(.975)}
+@media(hover:hover){.hub-tile:hover{transform:translateY(-4px);box-shadow:0 26px 56px rgba(0,0,0,.5)}}
+.t-live{background:linear-gradient(150deg,#2f7ef0,#38bdf8 55%,#3fd3d8)}
+.t-vod{background:linear-gradient(150deg,#8b45e8,#a855f7 48%,#ec4899)}
+.t-series{background:linear-gradient(150deg,#3ea88f,#7cb85f 52%,#f0b429)}
+.t-radio{background:linear-gradient(150deg,#2fae72,#35c48f 50%,#3fbfe0)}
+.t-diag{background:linear-gradient(150deg,#7c8698,#64748b 50%,#475569)}
+.hub-act{width:100%;display:flex;align-items:center;gap:14px;padding:0 20px;border-radius:16px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.13);color:#e6eefb;font-size:16px;font-weight:750;text-align:left;transition:transform .16s ease,background .16s ease,border-color .16s ease}
+.hub-act svg{width:24px;height:24px;flex:none;color:#7fc6f5}
+.hub-act:active{transform:scale(.985)}
+@media(hover:hover){.hub-act:hover{background:rgba(255,255,255,.1);border-color:rgba(127,198,245,.4)}}
+/* The reload icon spins while the catalogues are being re-fetched. */
+.hub-act.busy{opacity:.75;pointer-events:none}
+.hub-act.busy svg{animation:hubSpin .9s linear infinite;transform-origin:50% 50%}
+@keyframes hubSpin{to{transform:rotate(360deg)}}
 @keyframes homeRise{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
-50%{transform:translateY(-6px)}}
-46%,54%{left:118%}}
-@keyframes homeBrandPulse{0%,100%{box-shadow:0 12px 40px rgba(56,189,248,.28),inset 0 0 0 1px rgba(255,255,255,.08)}50%{box-shadow:0 12px 54px rgba(56,189,248,.5),inset 0 0 0 1px rgba(255,255,255,.18)}}
-@media(min-width:720px){
-  .home-cards{grid-template-columns:repeat(4,1fr)}
-  
-  
+@keyframes homeBrandPulse{0%,100%{box-shadow:inset 0 0 0 1px rgba(255,255,255,.14)}50%{box-shadow:inset 0 0 0 1px rgba(255,255,255,.26)}}
+@media(max-width:820px){
+  .home{padding:14px max(12px,env(safe-area-inset-left)) calc(18px + env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-right))}
+  .home-inner{max-width:520px;gap:12px}
+  .home-brand{width:38px;height:38px;border-radius:11px}
+  .home-head h1{font-size:15px}
+  .hub{gap:12px;grid-template-columns:1fr 1fr;grid-template-areas:"hero hero" "tiles tiles" "acts acts"}
+  .hub-tiles{gap:12px}
+  .hub-acts{grid-template-rows:none;grid-auto-rows:56px;gap:10px}
+  .hub-hero .hub-tile{min-height:200px;gap:12px}
+  .hub-hero .hub-tile svg{width:74px;height:74px}
+  .hub-hero .hub-tile .hc-name{font-size:23px}
+  .hub-tiles .hub-tile{min-height:124px}
+  .hub-tiles .hub-tile svg{width:38px;height:38px}
 }
 body.light .home{background:radial-gradient(circle at 15% 12%,rgba(56,189,248,.2),transparent 42%),radial-gradient(circle at 85% 18%,rgba(168,85,247,.16),transparent 38%),linear-gradient(160deg,#eef5ff,#e4edfb)}
 body.light .home-head h1{background:linear-gradient(90deg,#12325a,#22539c);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
@@ -699,10 +717,18 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
   <div class="home-inner">
     <div class="home-head">
       <div class="home-brand"><img src="image_482ee8.png" alt="Media26"></div>
-      <h1>What do you want to watch?</h1>
-      <p>Pick a category to get started</p>
+      <h1>MEDIA26 PLAYER</h1>
+      <span class="versionBadge hub-version"></span>
     </div>
-    <div class="home-cards"><button class="home-card hc-live" data-go="live"><span class="hc-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12.5" rx="2.2"/><path d="M8 21h8M12 18.5V21"/><path d="M9.6 9.4l4.4 2.85-4.4 2.85z" fill="currentColor" stroke="none"/></svg></span><span class="hc-body"><span class="hc-name">Live TV</span><span class="hc-num" id="homeLiveCount">—</span></span></button><button class="home-card hc-vod" data-go="vod"><span class="hc-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="15" rx="2.4"/><path d="M7.5 4.5v15M16.5 4.5v15M3 9.5h4.5M16.5 9.5H21M3 14.5h4.5M16.5 14.5H21"/></svg></span><span class="hc-body"><span class="hc-name">Movies</span><span class="hc-num" id="homeVodCount">—</span></span></button><button class="home-card hc-series" data-go="series"><span class="hc-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7.5" width="18" height="12" rx="2.2"/><path d="M7 7.5l3-3.2M13 7.5l3.2-3.3"/><path d="M9.8 11l4.2 2.6-4.2 2.6z" fill="currentColor" stroke="none"/></svg></span><span class="hc-body"><span class="hc-name">Series</span><span class="hc-num" id="homeSeriesCount">—</span></span></button><button class="home-card hc-radio" data-go="radio"><span class="hc-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 010 8.49M7.76 16.25a6 6 0 010-8.49M19.07 4.93a10 10 0 010 14.14M4.93 19.07a10 10 0 010-14.14"/></svg></span><span class="hc-body"><span class="hc-name">Radio</span><span class="hc-num" id="homeRadioCount">—</span></span></button></div><div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center"><button class="home-exit" id="homeDiag">Portal diagnostics</button><button class="home-exit" id="homeExit">Log out</button></div>
+    <div class="hub">
+      <div class="hub-hero"><button class="hub-tile t-live" data-go="live"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12.5" rx="2.2"/><path d="M8 21h8M12 18.5V21"/><path d="M9.6 9.4l4.4 2.85-4.4 2.85z" fill="currentColor" stroke="none"/></svg><span class="hc-name">Live TV</span><span class="hc-num" id="homeLiveCount">—</span></button></div>
+      <div class="hub-tiles"><button class="hub-tile t-vod" data-go="vod"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="15" rx="2.4"/><path d="M7.5 4.5v15M16.5 4.5v15M3 9.5h4.5M16.5 9.5H21M3 14.5h4.5M16.5 14.5H21"/></svg><span class="hc-name">Movies</span><span class="hc-num" id="homeVodCount">—</span></button><button class="hub-tile t-series" data-go="series"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7.5" width="18" height="12" rx="2.2"/><path d="M7 7.5l3-3.2M13 7.5l3.2-3.3"/><path d="M9.8 11l4.2 2.6-4.2 2.6z" fill="currentColor" stroke="none"/></svg><span class="hc-name">Series</span><span class="hc-num" id="homeSeriesCount">—</span></button><button class="hub-tile t-radio" data-go="radio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 010 8.49M7.76 16.25a6 6 0 010-8.49M19.07 4.93a10 10 0 010 14.14M4.93 19.07a10 10 0 010-14.14"/></svg><span class="hc-name">Radio</span><span class="hc-num" id="homeRadioCount">—</span></button><button class="hub-tile t-diag" data-go="__diag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4v6a5 5 0 0010 0V4"/><path d="M2.5 4h3M12.5 4h3"/><circle cx="18" cy="14" r="2.6"/><path d="M9 15v1.5a4.5 4.5 0 006.6 4"/></svg><span class="hc-name">Diagnostics</span><span class="hc-num">&nbsp;</span></button></div>
+      <div class="hub-acts">
+        <button class="hub-act" id="homeSettings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 00.34 1.87l.06.06a2 2 0 11-2.83 2.83l-.06-.06A1.7 1.7 0 0015 19.4a1.7 1.7 0 00-1 1.55V21a2 2 0 11-4 0v-.09A1.7 1.7 0 009 19.4a1.7 1.7 0 00-1.87.34l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.7 1.7 0 004.6 15a1.7 1.7 0 00-1.55-1H3a2 2 0 110-4h.09A1.7 1.7 0 004.6 9a1.7 1.7 0 00-.34-1.87l-.06-.06a2 2 0 112.83-2.83l.06.06A1.7 1.7 0 009 4.6a1.7 1.7 0 001-1.55V3a2 2 0 114 0v.09A1.7 1.7 0 0015 4.6a1.7 1.7 0 001.87-.34l.06-.06a2 2 0 112.83 2.83l-.06.06A1.7 1.7 0 0019.4 9a1.7 1.7 0 001.55 1H21a2 2 0 110 4h-.09a1.7 1.7 0 00-1.51 1z"/></svg><span>Settings</span></button>
+        <button class="hub-act" id="homeReload"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 11-2.5-5.8"/><path d="M20 3.5V9h-5.5"/></svg><span>Reload Portal</span></button>
+        <button class="hub-act" id="homeExit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 3.5h4a2 2 0 012 2v13a2 2 0 01-2 2h-4"/><path d="M10 16l-4-4 4-4M6 12h9"/></svg><span>Log out</span></button>
+      </div>
+    </div>
   </div>
 </div>
 <div class="catpage hidden" id="catpage">
@@ -725,9 +751,9 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
   </div>
 </div>
 <div class="login" id="login">
-  <span class="versionBadge login-version">v6.7</span>
+  <span class="versionBadge login-version">v6.8</span>
   <div class="login-card">
-    <img class="login-logo" src="watermark%20logo.png" alt="Media26 Logo"><h2>M26 Stalker Player</h2><p style="margin:2px 0 0;font-size:11px;color:#7a9bc8;font-weight:700;letter-spacing:.5px">DEVELOPED BY INZI RISHI</p><p class="devVersion" id="appVersionLine" style="margin:3px 0 0;font-size:11px;color:#96a9c6;font-weight:800;letter-spacing:.4px">Version v6.7</p>
+    <img class="login-logo" src="watermark%20logo.png" alt="Media26 Logo"><h2>M26 Stalker Player</h2><p style="margin:2px 0 0;font-size:11px;color:#7a9bc8;font-weight:700;letter-spacing:.5px">DEVELOPED BY INZI RISHI</p><p class="devVersion" id="appVersionLine" style="margin:3px 0 0;font-size:11px;color:#96a9c6;font-weight:800;letter-spacing:.4px">Version v6.8</p>
     <div class="profileList hidden" id="profileList">
       <div class="profileListHead">Saved Profiles</div>
       <div class="profileRows" id="profileRows"></div>
@@ -900,7 +926,7 @@ function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.re
 /* Version scheme restarts here at 5.0 by owner request; the previous 7.x line is retired.
    Bump this on every release that changes anything a user can see — it is the single source for
    the splash screen, the login screen and the version badges, so nothing else needs editing. */
-const APP_VERSION='6.7';
+const APP_VERSION='6.8';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1765,11 +1791,37 @@ async function loginStalker(){
    partial figure, so a slow section reads as busy rather than empty. Once anything has arrived the
    running total is shown, which keeps climbing as the per-category fetches land. */
 function updateHomeCounts(){
-  const put=(id,arr,loading)=>{const e=$(id);if(!e)return;e.textContent=(arr&&arr.length)?arr.length.toLocaleString():(loading?'Loading…':'—')};
-  put('homeLiveCount',S.live,S.loadingLive);
-  put('homeVodCount',S.vod,S.loadingVod);
-  put('homeSeriesCount',S.series,S.loadingSeries);
-  put('homeRadioCount',S.radio,S.loadingRadio);
+  /* v6.8: the tile shows the unit too ("14,208 channels"), so the number reads as a quantity
+     rather than a bare figure floating under the name. */
+  const put=(id,arr,loading,unit)=>{const e=$(id);if(!e)return;e.textContent=(arr&&arr.length)?(arr.length.toLocaleString()+' '+unit):(loading?'Loading…':'—')};
+  put('homeLiveCount',S.live,S.loadingLive,'channels');
+  put('homeVodCount',S.vod,S.loadingVod,'titles');
+  put('homeSeriesCount',S.series,S.loadingSeries,'shows');
+  put('homeRadioCount',S.radio,S.loadingRadio,'stations');
+}
+/* v6.8: Reload Portal — re-fetch every catalogue from the portal without logging out. For a
+   Stalker portal the handshake is redone first, so an expired token is renewed rather than
+   turning every following request into a failure; a handshake that fails is not fatal on its
+   own, because the existing token may still be good. */
+async function reloadPortal(){
+  if(S._reloading)return;
+  S._reloading=true;
+  const btn=$('homeReload');if(btn)btn.classList.add('busy');
+  try{
+    if(S.provider==='stalker'){
+      try{await stalkerHandshake();await stalkerDoAuth()}catch(e){}
+    }
+    S.loadedLive=S.loadedVod=S.loadedSeries=S.loadedRadio=false;
+    S.live=[];S.vod=[];S.series=[];S.radio=[];
+    updateHomeCounts();
+    toast('Reloading portal…');
+    for(const t of ['live','radio','vod','series']){await loadType(t);updateHomeCounts()}
+    toast('Portal reloaded');
+  }catch(e){
+    toast('Reload failed — check your connection');
+  }finally{
+    S._reloading=false;const b=$('homeReload');if(b)b.classList.remove('busy');
+  }
 }
 function showHome(){updateHomeCounts();if($('catpage'))$('catpage').classList.add('hidden');if($('home'))$('home').classList.remove('hidden');}
 /* v90: tapping a Home card now opens a beautiful full-screen CATEGORY page for that type
@@ -3629,7 +3681,7 @@ if($('stalkerMacRenew'))$('stalkerMacRenew').onclick=()=>{
 if($('loaderClose'))$('loaderClose').onclick=()=>load(false);
 if($('profileRows'))$('profileRows').onclick=e=>{const del=e.target.closest('[data-del]');if(del){e.stopPropagation();deleteProfile(del.dataset.del);return}const row=e.target.closest('.profileRow');if(row)applyProfile(row.dataset.id)};
 /* v89: Home hub wiring — card taps navigate to that category; brand logo returns Home. */
-if($('home'))$('home').addEventListener('click',e=>{const c=e.target.closest('[data-go]');if(c)goCategory(c.dataset.go)});
+if($('home'))$('home').addEventListener('click',e=>{const c=e.target.closest('[data-go]');if(!c)return;if(c.dataset.go==='__diag'){openDiag();return}goCategory(c.dataset.go)});
 /* v90: categories page interactions */
 if($('catBack'))$('catBack').onclick=()=>showHome();
 /* v3.0: iOS-style swipe-from-left-edge to go back.
@@ -3679,6 +3731,8 @@ if($('homeExit'))$('homeExit').onclick=()=>{if($('home'))$('home').classList.add
 let _diagText='';
 function openDiag(){if($('diagSheet'))$('diagSheet').classList.add('show')}
 if($('homeDiag'))$('homeDiag').onclick=openDiag;
+if($('homeSettings'))$('homeSettings').onclick=openNativePlayer;
+if($('homeReload'))$('homeReload').onclick=reloadPortal;
 if($('loginDiagBtn'))$('loginDiagBtn').onclick=openDiag;
 if($('diagClose'))$('diagClose').onclick=()=>$('diagSheet').classList.remove('show');
 if($('diagCancel'))$('diagCancel').onclick=()=>$('diagSheet').classList.remove('show');
